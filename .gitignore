@@ -1,0 +1,19 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tgz
+*.node
+
+# Local test / scratch data (never commit)
+ui-appearance/
+config.json
+backgrounds/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
