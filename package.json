@@ -25,6 +25,10 @@
     "accent",
     "theme"
   ],
+  "scripts": {
+    "test": "node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs",
+    "prepublishOnly": "npm test"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
@@ -54,5 +58,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
