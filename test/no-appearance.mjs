@@ -1,4 +1,4 @@
-// dsh-ui-appearance — no-appearance regression test.
+// dsh-ui-liteglass — no-appearance regression test.
 //
 // Confirms the plugin no longer owns or changes the DSH native color mode:
 //   * the client source contains NO theme.setTheme call and NO appearance /
@@ -60,7 +60,7 @@ const theme = {
 }
 // Mirror the client's applyVisuals/onThemeChange: patch calls applyThemeLayer
 // (overrideTokens); theme/change recomputes it; neither calls setTheme.
-function applyThemeLayer(c) { if (theme && typeof theme.overrideTokens === 'function') theme.overrideTokens('dsh-ui-appearance', c) }
+function applyThemeLayer(c) { if (theme && typeof theme.overrideTokens === 'function') theme.overrideTokens('dsh-ui-liteglass', c) }
 let currentConfig = null
 function patch(p) { const base = currentConfig || {}; const next = Object.assign({}, base, p); currentConfig = next; applyThemeLayer(next) }
 function onThemeChange() { if (currentConfig) applyThemeLayer(currentConfig) }

@@ -1,4 +1,4 @@
-// dsh-ui-appearance — Settings component lifecycle test (state-model level).
+// dsh-ui-liteglass — Settings component lifecycle test (state-model level).
 //
 // This validates the AUTHORITATIVE-CONFIG invariant that the client fix
 // guarantees, WITHOUT a browser/React runtime. It mirrors the store semantics
@@ -113,7 +113,7 @@ check('post-remount edit kept', mountSettingsPanelRead().panelOpacity === 0.3)
 
 console.log('\n== 6. simulated page refresh / DSH restart (new session reloads persisted) ==')
 currentConfig = null
-persisted = { background: 'local', backgroundImage: '/ui-appearance/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700' }
+persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700' }
 c = loadFromServer()
 check('reload restores persisted config', eq(c, persisted))
 check('reload config finite', finiteOk(c))
