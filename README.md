@@ -1,17 +1,17 @@
 # dsh-ui-liteglass
 
-English | [简体中文](README.zh-CN.md)
+**LiteGlass** — English | [简体中文](README.zh-CN.md)
 
-A lightweight appearance plugin for DeepSeek Harness.
+A lightweight appearance skin for DeepSeek Harness.
 
 **Wallpaper. Glass. Accent. That's it.**
 
-## Preview
+## Screenshots
 
-Screenshots to be added before release:
-
-- `preview.webp` — main interface with a custom wallpaper, glass-like panels, and an accent color
-- `settings.webp` — the plugin's Appearance settings area
+Real captures live under [`docs/screenshots/`](docs/screenshots/). The capture
+guide (`docs/screenshots/README.md`) lists the required scenes and sizes. Once
+captured, they are wired into `screenshots.json` for storefront display — the
+template is [`screenshots.json.example`](screenshots.json.example).
 
 ## Features
 
@@ -26,27 +26,51 @@ Screenshots to be added before release:
    - Customize the accent color used across supported DSH interface states
    - Adapts automatically to DSH's native Light / Dark appearance
 
-## Philosophy
+## What makes it different
 
-`dsh-ui-liteglass` is deliberately small, focused, and predictable.
+- **Server-side persistence, multi-device.** Settings and uploaded wallpaper are
+  stored on the DSH host (not in the browser), so every device that reaches the
+  host shares the same look.
+- **Does not take over the native color mode.** Light / Dark / System stays fully
+  owned by DSH native settings; the plugin only enhances appearance on top.
+- **No second theme system.** Built on the official `theme.overrideTokens` seam
+  and the DSH token system — no bundled CSS framework, no competing theme model.
+- **Small, focused, predictable.** Wallpaper + glass + accent, nothing else.
 
-- It does **not** build a second theme system.
-- It does **not** replace the DSH native Appearance settings.
-- Light / Dark / System is managed entirely by DSH native settings. The plugin
-  never modifies the native color mode.
-- It starts with a native experience by default — appearance is only enhanced
-  when you configure it.
+## Identity
+
+| Field | Value |
+|---|---|
+| package | `dsh-ui-liteglass` |
+| display name | **LiteGlass** |
+| plugin id (client module / settings.section / theme source) | `dsh-ui-liteglass` |
+| rowId / wiring.id (loader entry / skin-market) | `ui-liteglass` |
+
+`rowId` matches the loader entry id in `cordis.patch.yml`, which is what skin
+markets use for mutual-exclusion wiring. See `docs/IDENTITY.md` for the canonical
+record.
 
 ## Compatibility
 
-Tested with DeepSeek Harness 0.1.0-rc.7.
+- **Supported:** the DeepSeek Harness `0.1.0-rc` line (the current release-candidate
+  series). The plugin uses only stable official seams (`webServer`, `settings`,
+  `theme.overrideTokens`, `dsh.client` inject).
+- **Tested with:** DeepSeek Harness `0.1.0-rc.7` (development runtime; client theme
+  bundle `0.1.0-rc.8`).
 
 DeepSeek Harness is still evolving quickly, so a future release may change plugin
-interfaces.
+interfaces; the supported range above is a declaration, not a promise of
+forward-compatibility.
 
 ## Installation
 
-Install directly from the GitHub repository (via the pnpm-based `dsh plugin add`):
+From npm (once published):
+
+```sh
+dsh plugin --profile web add dsh-ui-liteglass
+```
+
+Or directly from the GitHub repository (works today):
 
 ```sh
 dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-liteglass.git
@@ -101,7 +125,8 @@ no-color-mode guarantee:
 node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs
 ```
 
-See `docs/ARCHITECTURE.md` for design details.
+`npm publish` runs the same suites via `prepublishOnly`. See
+`docs/ARCHITECTURE.md` for design details.
 
 ## License
 
