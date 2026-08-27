@@ -1,16 +1,16 @@
-# dsh-ui-appearance — bundle patch layer.
+# dsh-ui-liteglass — bundle patch layer.
 #
 # Installed as a DSH profile bundle (`dsh.bundle.patch`). Mounts the host half
 # of the plugin. The client half rides `dsh.client` in package.json and is
-# served by client-modules at /plugins/dsh-ui-appearance/client.js.
+# served by client-modules at /plugins/dsh-ui-liteglass/client.js.
 #
 # `inject` is the HOST-side service list (the host apply reads `webServer` for
 # the config/background routes and `settings` for the authoritative native
 # theme preference). File I/O uses node:fs directly, so no `fs` service is
 # required.
 - insert:
-    - id: ui-appearance
-      name: 'dsh-ui-appearance'
+    - id: ui-liteglass
+      name: 'dsh-ui-liteglass'
       inject:
         - webServer
         - settings
