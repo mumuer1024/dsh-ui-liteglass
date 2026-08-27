@@ -1,4 +1,4 @@
-# dsh-ui-appearance
+# dsh-ui-liteglass
 
 English | [简体中文](README.zh-CN.md)
 
@@ -28,7 +28,7 @@ Screenshots to be added before release:
 
 ## Philosophy
 
-`dsh-ui-appearance` is deliberately small, focused, and predictable.
+`dsh-ui-liteglass` is deliberately small, focused, and predictable.
 
 - It does **not** build a second theme system.
 - It does **not** replace the DSH native Appearance settings.
@@ -49,14 +49,14 @@ interfaces.
 Install directly from the GitHub repository (via the pnpm-based `dsh plugin add`):
 
 ```sh
-dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-appearance.git
+dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-liteglass.git
 dsh --profile web
 ```
 
 To pin a specific release, add the tag:
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-appearance.git#v0.1.0'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.1.0'
 ```
 
 `dsh plugin add` initializes the profile on first use and wires the bundle
@@ -75,11 +75,11 @@ Changes are saved to the server and shared across devices that reach the DSH hos
 ## Uninstallation
 
 ```sh
-dsh plugin --profile web remove dsh-ui-appearance
+dsh plugin --profile web remove dsh-ui-liteglass
 ```
 
 Removing the plugin restores the original appearance. Note that uploaded
-wallpaper files and the plugin config under `$DSH_HOME/ui-appearance/` are not
+wallpaper files and the plugin config under `$DSH_HOME/ui-liteglass/` are not
 removed by the uninstall command — delete that directory manually if you want
 them gone.
 

@@ -1,4 +1,4 @@
-# dsh-ui-appearance
+# dsh-ui-liteglass
 
 [English](README.md) | 简体中文
 
@@ -28,7 +28,7 @@
 
 ## 设计理念
 
-`dsh-ui-appearance` 刻意保持小巧、专注、可预期。
+`dsh-ui-liteglass` 刻意保持小巧、专注、可预期。
 
 - 不建立第二套主题系统。
 - 不替代 DSH 原生外观设置。
@@ -46,14 +46,14 @@ DeepSeek Harness 仍在快速迭代，未来版本可能改变插件接口。
 直接从 GitHub 仓库安装（经 pnpm 底层的 `dsh plugin add`）：
 
 ```sh
-dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-appearance.git
+dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-liteglass.git
 dsh --profile web
 ```
 
 如需固定到某个具体版本，可在 URL 后附加 tag：
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-appearance.git#v0.1.0'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.1.0'
 ```
 
 `dsh plugin add` 会在首次使用时初始化 profile，并自动接入 bundle。之后启动 Web UI，
@@ -72,11 +72,11 @@ dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-appearanc
 ## 卸载
 
 ```sh
-dsh plugin --profile web remove dsh-ui-appearance
+dsh plugin --profile web remove dsh-ui-liteglass
 ```
 
 移除插件后外观会恢复原样。注意：上传的壁纸文件与插件配置位于
-`$DSH_HOME/ui-appearance/`，卸载命令不会删除它们——如需清理，请手动删除该目录。
+`$DSH_HOME/ui-liteglass/`，卸载命令不会删除它们——如需清理，请手动删除该目录。
 
 ## 已知限制
 

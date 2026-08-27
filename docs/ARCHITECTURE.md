@@ -1,4 +1,4 @@
-# dsh-ui-appearance — Architecture
+# dsh-ui-liteglass — Architecture
 
 Technical notes for maintainers and contributors. This is **not** the user-facing
 README. It describes how the plugin is built against DeepSeek Harness and where
@@ -12,7 +12,7 @@ entirely by DSH native settings; the plugin never calls `theme.setTheme`.
 
 ## 1. Dual-half structure
 
-`dsh-ui-appearance` is one npm package shipping two halves:
+`dsh-ui-liteglass` is one npm package shipping two halves:
 
 | Half | File | Runs on | Role |
 |---|---|---|---|
@@ -28,12 +28,12 @@ from the shell's module table — **no build step, no bundled React**.
 The package is installed into a DSH profile as a **bundle**. Relevant metadata:
 
 - `dsh.bundle.patch` → `cordis.patch.yml` mounts the **host** half as a loader
-  entry (`id: ui-appearance`, `inject: [webServer, settings]`).
+  entry (`id: ui-liteglass`, `inject: [webServer, settings]`).
 - `dsh.client` declares `{ platform: "web", inject: ["@deepseek-ai/dsh-client-ui-theme"] }`.
   The `inject` here is the client-side dependency ordering — the theme client
   bundle must be active before this plugin's client.
 - `exports["."]` → `lib/index.js` (host apply), `exports["./client"]` →
-  `lib/client.js` (served by client-modules at `/plugins/dsh-ui-appearance/client.js`).
+  `lib/client.js` (served by client-modules at `/plugins/dsh-ui-liteglass/client.js`).
 
 The client is adopted by the Cordis client runner, which wraps `apply(ctx)` with a
 **guarded context**: service access is gated by the returned `inject` array
@@ -51,10 +51,10 @@ Registered on the DSH `webServer` service (`webServer.register`):
 
 | Route | Kind | Purpose |
 |---|---|---|
-| `GET/POST /ui-appearance/config` | exact | read / write the plugin config JSON |
-| `GET /ui-appearance/state` | exact | expose the native theme preference (read-only; the plugin never changes it) |
-| `POST /ui-appearance/background` | exact | accept an uploaded wallpaper image (raw body, content-type whitelisted) |
-| `GET /ui-appearance/backgrounds/*` | prefix | serve stored wallpaper files |
+| `GET/POST /ui-liteglass/config` | exact | read / write the plugin config JSON |
+| `GET /ui-liteglass/state` | exact | expose the native theme preference (read-only; the plugin never changes it) |
+| `POST /ui-liteglass/background` | exact | accept an uploaded wallpaper image (raw body, content-type whitelisted) |
+| `GET /ui-liteglass/backgrounds/*` | prefix | serve stored wallpaper files |
 
 Route notes:
 
@@ -69,16 +69,16 @@ Route notes:
 
 ## 4. Config & background persistence
 
-Everything persists **server-side**, under `$DSH_HOME/ui-appearance/`:
+Everything persists **server-side**, under `$DSH_HOME/ui-liteglass/`:
 
 ```
-$DSH_HOME/ui-appearance/
+$DSH_HOME/ui-liteglass/
   config.json          # small normalized config (all plugin settings)
   backgrounds/<id>.<ext>   # uploaded wallpaper files
 ```
 
 - The config JSON is a small document; a wallpaper is referenced by a
-  **server-relative URL** (`/ui-appearance/backgrounds/<id>.<ext>`), never by a
+  **server-relative URL** (`/ui-liteglass/backgrounds/<id>.<ext>`), never by a
   client blob. Because storage is on the host, any device that reaches the DSH
   host sees the same wallpaper and config (multi-device).
 - The host `sanitizeConfig` normalizes/whitelists every field on write, so the
@@ -108,7 +108,7 @@ module-level `currentConfig`.
 
 ## 6. `theme.overrideTokens` (Accent + Glass)
 
-`applyThemeLayer(c)` calls `theme.overrideTokens('dsh-ui-appearance', tokens)`.
+`applyThemeLayer(c)` calls `theme.overrideTokens('dsh-ui-liteglass', tokens)`.
 The layer is a set of `{ light, dark }` pairs; the native theme presenter picks
 the value matching the **active color scheme**, so Accent and glass surfaces
 adapt automatically when DSH switches Light/Dark.
@@ -149,16 +149,16 @@ All plugin-owned identifiers are namespaced to avoid collisions:
 
 | Kind | Prefix |
 |---|---|
-| package / plugin id | `dsh-ui-appearance` |
-| CSS custom properties | `--dsh-appearance-*` |
-| DOM class / data attribute | `dsh-ui-appearance-*` / `[data-dsh-ui-appearance=...]` |
-| injected `<style>` tags | `data-plugin="dsh-ui-appearance"` |
-| settings.section id | `dsh-ui-appearance` |
+| package / plugin id | `dsh-ui-liteglass` |
+| CSS custom properties | `--dsh-liteglass-*` |
+| DOM class / data attribute | `dsh-ui-liteglass-*` / `[data-dsh-ui-liteglass=...]` |
+| injected `<style>` tags | `data-plugin="dsh-ui-liteglass"` |
+| settings.section id | `dsh-ui-liteglass` |
 | theme override source id | forced to this package id by the runner |
 
 ## 10. Background layer & panel blur
 
-- Wallpaper is a fixed, non-interactive layer `.dsh-ui-appearance-bg`
+- Wallpaper is a fixed, non-interactive layer `.dsh-ui-liteglass-bg`
   (`position:fixed; z-index:0; pointer-events:none`), inserted before `#root`, with
   `filter: blur(...)` and `opacity` driven by CSS variables.
 - **Panel `backdrop-filter` blur is disabled.** Applying `backdrop-filter` to the
