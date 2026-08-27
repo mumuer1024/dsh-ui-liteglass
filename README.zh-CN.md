@@ -1,17 +1,16 @@
 # dsh-ui-liteglass
 
-[English](README.md) | 简体中文
+**LiteGlass** — [English](README.md) | 简体中文
 
-一个轻量级的 DeepSeek Harness 外观插件。
+一个轻量级的 DeepSeek Harness 外观皮肤插件。
 
 **Wallpaper. Glass. Accent. 仅此而已。**
 
-## 预览
+## 截图
 
-截图将在发布前补充：
-
-- `preview.webp` — 主界面，展示自定义壁纸 + 玻璃质感面板 + 重点色
-- `settings.webp` — 插件的 Appearance 设置区域
+真实截图放在 [`docs/screenshots/`](docs/screenshots/)，采集指引
+（`docs/screenshots/README.md`）列出了需要哪些场景与尺寸。截图到位后通过
+`screenshots.json` 接入市场展示（模板见 [`screenshots.json.example`](screenshots.json.example)）。
 
 ## 功能
 
@@ -26,24 +25,48 @@
    - 自定义 DSH 界面中受支持状态的重点色
    - 自动适配 DSH 原生浅色 / 深色外观
 
-## 设计理念
+## 差异化
 
-`dsh-ui-liteglass` 刻意保持小巧、专注、可预期。
+- **服务端持久化、多设备一致**：设置与上传壁纸保存在 DSH 主机端（而非浏览器），
+  任何能访问主机的设备都看到同一套外观。
+- **不接管原生颜色模式**：Light / Dark / System 完全由 DSH 原生设置管理，
+  插件只在其之上增强外观。
+- **不建立第二套主题系统**：基于官方 `theme.overrideTokens` 缝与 DSH token 体系，
+  无自带 CSS 框架、无竞争主题模型。
+- **小巧、专注、可预期**：壁纸 + 玻璃 + 重点色，仅此而已。
 
-- 不建立第二套主题系统。
-- 不替代 DSH 原生外观设置。
-- Light / Dark / System 完全由 DSH 原生设置管理。插件不会修改原生颜色模式。
-- 默认保持 DSH 原生外观，仅在你主动配置后应用对应的视觉效果。
+## 身份标识 (Identity)
+
+| 字段 | 值 |
+|---|---|
+| package | `dsh-ui-liteglass` |
+| display name | **LiteGlass** |
+| plugin id（client module / settings.section / theme source） | `dsh-ui-liteglass` |
+| rowId / wiring.id（loader entry / skin-market） | `ui-liteglass` |
+
+`rowId` 与 `cordis.patch.yml` 中的 loader entry id 一致，皮肤市场用它做互斥接线。
+权威记录见 `docs/IDENTITY.md`。
 
 ## 兼容性
 
-已在 DeepSeek Harness 0.1.0-rc.7 上完成测试。
+- **Supported（声明支持）**：DeepSeek Harness `0.1.0-rc` 系列（当前 release-candidate
+  线）。插件只使用稳定的官方缝（`webServer`、`settings`、`theme.overrideTokens`、
+  `dsh.client` inject）。
+- **Tested with（已验证）**：DeepSeek Harness `0.1.0-rc.7`（开发运行时；client theme
+  bundle `0.1.0-rc.8`）。
 
-DeepSeek Harness 仍在快速迭代，未来版本可能改变插件接口。
+DeepSeek Harness 仍在快速迭代，未来版本可能改变插件接口；以上支持范围是声明，
+而非向前兼容承诺。
 
 ## 安装
 
-直接从 GitHub 仓库安装（经 pnpm 底层的 `dsh plugin add`）：
+从 npm（发布后）：
+
+```sh
+dsh plugin --profile web add dsh-ui-liteglass
+```
+
+或直接从 GitHub 仓库安装（现在即可用）：
 
 ```sh
 dsh plugin --profile web add git+https://github.com/mumuer1024/dsh-ui-liteglass.git
@@ -93,7 +116,7 @@ dsh plugin --profile web remove dsh-ui-liteglass
 node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs
 ```
 
-设计细节见 `docs/ARCHITECTURE.md`。
+`npm publish` 会经 `prepublishOnly` 先跑同一套测试。设计细节见 `docs/ARCHITECTURE.md`。
 
 ## 许可证
 
