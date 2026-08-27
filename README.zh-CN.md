@@ -8,9 +8,15 @@
 
 ## 截图
 
-真实截图放在 [`docs/screenshots/`](docs/screenshots/)，采集指引
-（`docs/screenshots/README.md`）列出了需要哪些场景与尺寸。截图到位后通过
-`screenshots.json` 接入市场展示（模板见 [`screenshots.json.example`](screenshots.json.example)）。
+运行中的真实截图——浅色 / 深色主界面与外观设置页——放在
+[`docs/screenshots/`](docs/screenshots/)，并通过
+[`screenshots.json`](screenshots.json) 接入市场展示。
+
+![LiteGlass — 浅色模式](docs/screenshots/preview-light.webp)
+
+![LiteGlass — 深色模式](docs/screenshots/preview-dark.webp)
+
+![LiteGlass — 外观设置](docs/screenshots/settings-light.webp)
 
 ## 功能
 

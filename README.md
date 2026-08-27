@@ -8,10 +8,15 @@ A lightweight appearance skin for DeepSeek Harness.
 
 ## Screenshots
 
-Real captures live under [`docs/screenshots/`](docs/screenshots/). The capture
-guide (`docs/screenshots/README.md`) lists the required scenes and sizes. Once
-captured, they are wired into `screenshots.json` for storefront display — the
-template is [`screenshots.json.example`](screenshots.json.example).
+Real captures of the running plugin — light / dark main interface and the
+Appearance settings — under [`docs/screenshots/`](docs/screenshots/), wired into
+[`screenshots.json`](screenshots.json) for storefront display.
+
+![LiteGlass — light mode](docs/screenshots/preview-light.webp)
+
+![LiteGlass — dark mode](docs/screenshots/preview-dark.webp)
+
+![LiteGlass — Appearance settings](docs/screenshots/settings-light.webp)
 
 ## Features
 
