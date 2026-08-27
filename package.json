@@ -1,5 +1,5 @@
 {
-  "name": "dsh-ui-appearance",
+  "name": "dsh-ui-liteglass",
   "version": "0.1.0",
   "description": "A lightweight appearance plugin for DeepSeek Harness: custom wallpaper, glass-like panel transparency, and accent color. Ships a host half plus a web client half in one npm package.",
   "type": "module",
@@ -7,17 +7,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mumuer1024/dsh-ui-appearance.git"
+    "url": "git+https://github.com/mumuer1024/dsh-ui-liteglass.git"
   },
-  "homepage": "https://github.com/mumuer1024/dsh-ui-appearance#readme",
+  "homepage": "https://github.com/mumuer1024/dsh-ui-liteglass#readme",
   "bugs": {
-    "url": "https://github.com/mumuer1024/dsh-ui-appearance/issues"
+    "url": "https://github.com/mumuer1024/dsh-ui-liteglass/issues"
   },
   "keywords": [
     "deepseek",
     "harness",
     "dsh",
     "plugin",
+    "liteglass",
     "appearance",
     "wallpaper",
     "glass",
