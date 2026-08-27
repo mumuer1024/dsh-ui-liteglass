@@ -156,6 +156,9 @@ All plugin-owned identifiers are namespaced to avoid collisions:
 | settings.section id | `dsh-ui-liteglass` |
 | theme override source id | forced to this package id by the runner |
 
+Canonical identity record (package / plugin id / rowId / display name):
+[`docs/IDENTITY.md`](IDENTITY.md).
+
 ## 10. Background layer & panel blur
 
 - Wallpaper is a fixed, non-interactive layer `.dsh-ui-liteglass-bg`
