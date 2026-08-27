@@ -8,7 +8,7 @@ pnpm-debug.log*
 *.node
 
 # Local test / scratch data (never commit)
-ui-appearance/
+ui-liteglass/
 config.json
 backgrounds/
 
