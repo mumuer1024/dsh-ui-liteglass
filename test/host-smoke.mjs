@@ -5,11 +5,16 @@
 // plugin, and does not start/restart any server. All temp data is removed in
 // the finally block.
 //
-// The plugin's apply() only needs `webServer.register(...)`; we provide a tiny
-// in-process webServer mock (exact → longest-prefix routing) so each route
-// handler runs against real node:http-style req/res objects.
+// The plugin's apply() needs `webServer.register`, `ctx.effect`, and the
+// `connection` / `settings` services; the mocks below mirror the DSH 0.2.x
+// contracts those methods carry:
+//   * webserver matches exact first, then the longest prefix via
+//     `pathname.startsWith(prefix + "/")`;
+//   * `connection.isAuthenticated(request)` is the per-route gate (the harness
+//     itself only authenticates the index and /api);
+//   * `settings.describe()` returns descriptors keyed by namespace.
 
-import { mkdtemp, readFile, rm, access } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, access, mkdir, writeFile, stat, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
@@ -53,17 +58,24 @@ function makeRes() {
 function makeWebServer() {
   const routes = []
   return {
-    register(route) { routes.push(route); return () => {} },
+    routes,
+    register(route) {
+      const entry = { route, disposed: false }
+      routes.push(entry)
+      return () => {
+        entry.disposed = true
+        const at = routes.indexOf(entry)
+        if (at !== -1) routes.splice(at, 1)
+      }
+    },
+    active() { return routes.map((e) => e.route) },
     async dispatch(method, url, headers, body) {
       const path = String(url).split('?')[0]
-      // Mirror the real dsh-host-webserver match(): exact first, then longest
-      // prefix via `pathname.startsWith(prefix + "/")` (or pathname === prefix).
-      const exact = routes.find((r) => r.kind === 'exact' && r.path === path)
-      if (exact) {
-        return await run(exact)
-      }
+      const active = routes.map((e) => e.route)
+      const exact = active.find((r) => r.kind === 'exact' && r.path === path)
+      if (exact) return await run(exact)
       let best
-      for (const r of routes) {
+      for (const r of active) {
         if (r.kind !== 'prefix') continue
         if (path !== r.path && !path.startsWith(r.path + '/')) continue
         if (best === void 0 || r.path.length > best.path.length) best = r
@@ -83,141 +95,157 @@ function makeWebServer() {
   }
 }
 
+function makeCtx(services) {
+  const disposers = []
+  return {
+    get: (name) => services[name],
+    effect(fn) {
+      const dispose = fn()
+      if (typeof dispose === 'function') disposers.push(dispose)
+      return dispose
+    },
+    dispose() {
+      while (disposers.length > 0) {
+        const dispose = disposers.pop()
+        try { dispose() } catch { /* ignore */ }
+      }
+    }
+  }
+}
+
+const AUTH = { cookie: 'session=test' }
+const ANON = { 'x-test-anon': '1' }
+// A minimal PNG-signature body: enough for the magic-byte sniff.
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('liteglass-test')])
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('not-a-png')])
+
 const tmpHome = await mkdtemp(join(tmpdir(), 'dsh-ui-liteglass-test-'))
 process.env.DSH_HOME = tmpHome
 
-// NOTE: import must happen AFTER DSH_HOME is set only because apply() calls
-// dataDir() at apply-time; importing is order-independent here.
 const { default: plugin } = await import(join(pkgRoot, 'lib/index.js'))
 
-const webServer = makeWebServer()
-const goodSettings = { get: (ns) => (ns === 'ui-theme' ? { preference: 'dark' } : undefined) }
+const dataDir = join(tmpHome, 'ui-liteglass')
+const backgroundsDir = join(dataDir, 'backgrounds')
+const configFile = join(dataDir, 'config.json')
+
+function makeServices(overrides = {}) {
+  const webServer = makeWebServer()
+  const connection = {
+    isAuthenticated(req) {
+      if (req.headers['x-test-anon'] === '1') return false
+      return req.headers.cookie === AUTH.cookie
+    }
+  }
+  const settings = { describe: () => [{ ns: 'ui-theme', value: { preference: 'dark' } }] }
+  return { webServer, connection, settings, ...overrides }
+}
 
 let failed = false
 try {
-  console.log('\n== host apply (register routes) ==')
-  plugin.apply({ get: (n) => (n === 'webServer' ? webServer : n === 'settings' ? goodSettings : undefined) })
+  console.log('\n== host apply (register routes on the fiber) ==')
+  const services = makeServices()
+  const ctx = makeCtx(services)
+  plugin.apply(ctx)
+  check('four routes registered', services.webServer.active().length === 4)
+  check('plugin declares connection + settings + webServer',
+    ['webServer', 'settings', 'connection'].every((name) => plugin.inject.includes(name)))
 
-  console.log('\n== GET /ui-liteglass/config (fresh) ==')
-  let res = await webServer.dispatch('GET', '/ui-liteglass/config', {})
-  let j = JSON.parse(res.body)
-  check('GET config → 200', res.statusCode === 200)
-  check('GET config ok', j.ok === true)
-  check('GET config null on fresh', j.config === null)
+  console.log('\n== authentication gate (DSH 0.2.x authenticates per route) ==')
+  let res = await services.webServer.dispatch('GET', '/ui-liteglass/config', ANON)
+  check('anonymous config GET → 401', res.statusCode === 401)
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/state', ANON)
+  check('anonymous state GET → 401', res.statusCode === 401)
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', ANON, PNG)
+  check('anonymous upload → 401', res.statusCode === 401)
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/backgrounds/' + 'a'.repeat(16) + '.png', ANON)
+  check('anonymous background GET → 401', res.statusCode === 401)
 
-  console.log('\n== POST /ui-liteglass/config (valid) ==')
-  res = await webServer.dispatch('POST', '/ui-liteglass/config', { 'Content-Type': 'application/json' }, Buffer.from(JSON.stringify({
-    background: 'url', backgroundImage: 'https://example.com/w.png',
-    backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.5, panelBlur: 8, accentColor: '#aabbcc'
-  })))
-  j = JSON.parse(res.body)
-  check('POST config → 200', res.statusCode === 200)
-  check('POST config ok', j.ok === true)
-  check('POST config echoed', j.config.background === 'url' && j.config.accentColor === '#aabbcc')
-  check('no appearance field persisted', !('appearance' in j.config) && !('originalPreference' in j.config))
+  console.log('\n== config read/write (full normalization) ==')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH)
+  check('fresh config GET 200', res.statusCode === 200)
+  check('fresh config body ok', JSON.parse(res.body).ok === true)
+  check('fresh config is null', JSON.parse(res.body).config === null)
 
-  console.log('\n== GET config after POST (persistence read-back) ==')
-  res = await webServer.dispatch('GET', '/ui-liteglass/config', {})
-  j = JSON.parse(res.body)
-  check('persisted read-back', j.config && j.config.background === 'url' && j.config.accentColor === '#aabbcc')
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'text/plain' }, Buffer.from('{}'))
+  check('config POST rejects text/plain (415)', res.statusCode === 415)
 
-  console.log('\n== POST partial config → server returns FULL normalized config ==')
-  res = await webServer.dispatch('POST', '/ui-liteglass/config', { 'Content-Type': 'application/json' }, Buffer.from(JSON.stringify({ background: 'local' })))
-  j = JSON.parse(res.body)
-  const c = j.config
-  check('full config has every field', ['background', 'backgroundImage', 'backgroundOpacity', 'backgroundBlur', 'panelOpacity', 'panelBlur', 'accentColor'].every((k) => k in c))
-  check('partial numerics defaulted to finite', Number.isFinite(c.backgroundOpacity) && Number.isFinite(c.backgroundBlur) && Number.isFinite(c.panelOpacity) && Number.isFinite(c.panelBlur))
-  check('no NaN/undefined anywhere', JSON.stringify(c).indexOf('NaN') === -1 && JSON.stringify(c).indexOf('undefined') === -1)
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'application/json', origin: 'https://evil.example', host: '127.0.0.1:3081' }, Buffer.from('{}'))
+  check('config POST rejects cross-origin (403)', res.statusCode === 403)
 
-  console.log('\n== POST config invalid JSON ==')
-  res = await webServer.dispatch('POST', '/ui-liteglass/config', { 'Content-Type': 'application/json' }, Buffer.from('not json'))
-  j = JSON.parse(res.body)
-  check('invalid JSON → ok:false', j.ok === false && /bad json/.test(j.error))
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'application/json', origin: 'http://127.0.0.1:3081', host: '127.0.0.1:3081' }, Buffer.from('not json'))
+  check('config POST bad json → ok:false', JSON.parse(res.body).ok === false)
+  check('bad json did not write config', await readFile(configFile, 'utf8').then(() => false, () => true))
 
-  console.log('\n== POST config sanitization (illegal values) ==')
-  res = await webServer.dispatch('POST', '/ui-liteglass/config', { 'Content-Type': 'application/json' }, Buffer.from(JSON.stringify({
-    background: 'party', panelOpacity: 99, accentColor: 'javascript:alert(1)'
-  })))
-  j = JSON.parse(res.body)
-  check('background sanitized to off', j.config.background === 'off')
-  check('panelOpacity clamped to 1', j.config.panelOpacity === 1)
-  check('accentColor rejected', j.config.accentColor === '')
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'application/json' },
+    Buffer.from(JSON.stringify({ background: 'url', backgroundImage: 'https://ex.com/w.jpg', backgroundBlur: '999', panelOpacity: -5, accentColor: 'red', accentButtons: 'yes' })))
+  const saved = JSON.parse(res.body).config
+  check('config POST 200 + sanitized', res.statusCode === 200 && saved.ok !== false && saved.background === 'url')
+  check('numbers clamped', saved.backgroundBlur === 40 && saved.panelOpacity === 0)
+  check('invalid accent dropped', saved.accentColor === '')
+  check('accentButtons is boolean, default false', saved.accentButtons === false)
 
-  console.log('\n== GET /ui-liteglass/state (nativePreference from settings) ==')
-  res = await webServer.dispatch('GET', '/ui-liteglass/state', {})
-  j = JSON.parse(res.body)
-  check('state nativePreference = dark', j.ok === true && j.nativePreference === 'dark')
+  const onDisk = JSON.parse(await readFile(configFile, 'utf8'))
+  check('config persisted to disk', onDisk.backgroundImage === 'https://ex.com/w.jpg')
+  check('full config shape', ['background', 'backgroundImage', 'backgroundOpacity', 'backgroundBlur', 'panelOpacity', 'panelBlur', 'accentColor', 'accentButtons'].every((k) => Object.prototype.hasOwnProperty.call(onDisk, k)))
 
-  console.log('\n== nativePreference fallback (settings.get throws) ==')
-  const brokenSettings = { get: () => { throw new Error('boom') } }
-  const plugin2 = plugin // same apply; re-run with broken settings
-  const webServer2 = makeWebServer()
-  plugin2.apply({ get: (n) => (n === 'webServer' ? webServer2 : n === 'settings' ? brokenSettings : undefined) })
-  res = await webServer2.dispatch('GET', '/ui-liteglass/state', {})
-  j = JSON.parse(res.body)
-  check('fallback nativePreference = system', j.ok === true && j.nativePreference === 'system')
+  console.log('\n== native theme preference (settings.describe(), not get()) ==')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/state', AUTH)
+  check('state reports the real preference (dark)', JSON.parse(res.body).nativePreference === 'dark')
 
-  console.log('\n== nativePreference fallback (settings undefined) ==')
-  const webServer3 = makeWebServer()
-  plugin2.apply({ get: (n) => (n === 'webServer' ? webServer3 : undefined) })
-  res = await webServer3.dispatch('GET', '/ui-liteglass/state', {})
-  j = JSON.parse(res.body)
-  check('no-settings nativePreference = system', j.ok === true && j.nativePreference === 'system')
+  console.log('\n== upload: content type, magic bytes, body limit ==')
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/svg+xml' }, PNG)
+  check('unsupported mime rejected (415)', res.statusCode === 415)
 
-  console.log('\n== POST /ui-liteglass/background (valid PNG) ==')
-  const pngBytes = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
-  res = await webServer.dispatch('POST', '/ui-liteglass/background', { 'Content-Type': 'image/png' }, pngBytes)
-  j = JSON.parse(res.body)
-  check('upload ok', j.ok === true)
-  check('upload url shape', /^\/ui-liteglass\/backgrounds\/[0-9a-f]{16}\.png$/.test(j.url))
-  const bgUrl = j.url
-  const bgId = bgUrl.split('/').pop()
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/png' }, JPEG)
+  check('jpeg bytes declared as png rejected (415)', res.statusCode === 415)
 
-  console.log('\n== GET /ui-liteglass/backgrounds/<id> (serve round-trip) ==')
-  res = await webServer.dispatch('GET', bgUrl, {})
-  check('serve 200', res.statusCode === 200)
-  check('serve content-type image/png', /image\/png/.test(res.headers['Content-Type'] || ''))
-  check('serve bytes equal', res.rawBody !== null && res.rawBody.equals(pngBytes))
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/png' }, Buffer.from('plain text, not an image'))
+  check('non-image body rejected (415)', res.statusCode === 415)
 
-  console.log('\n== on-disk persistence ==')
-  const configFile = join(tmpHome, 'ui-liteglass', 'config.json')
-  const bgFile = join(tmpHome, 'ui-liteglass', 'backgrounds', bgId)
-  let cfgOnDisk = null
-  try { cfgOnDisk = JSON.parse(await readFile(configFile, 'utf8')) } catch (e) {}
-  check('config.json exists + parses', cfgOnDisk !== null)
-  const allFields = ['background', 'backgroundImage', 'backgroundOpacity', 'backgroundBlur', 'panelOpacity', 'panelBlur', 'accentColor'].every((k) => k in cfgOnDisk)
-  const noNaN = cfgOnDisk && JSON.stringify(cfgOnDisk).indexOf('NaN') === -1 && JSON.stringify(cfgOnDisk).indexOf('undefined') === -1
-  check('config.json is full + finite (no NaN/undefined)', allFields && noNaN)
-  let bgOnDisk = false
-  try { bgOnDisk = (await access(bgFile), true) } catch (e) { bgOnDisk = false }
-  check('background file on disk', bgOnDisk === true)
+  const huge = Buffer.alloc(9 * 1024 * 1024, 1)
+  PNG.copy(huge, 0)
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/png' }, huge)
+  check('oversized upload rejected (413)', res.statusCode === 413)
 
-  console.log('\n== POST background unsupported MIME ==')
-  res = await webServer.dispatch('POST', '/ui-liteglass/background', { 'Content-Type': 'text/html' }, Buffer.from('<html></html>'))
-  j = JSON.parse(res.body)
-  check('unsupported mime rejected', j.ok === false && /unsupported content type/.test(j.error))
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/png' }, PNG)
+  const uploaded = JSON.parse(res.body)
+  check('png upload accepted', res.statusCode === 200 && uploaded.ok === true && /^\/ui-liteglass\/backgrounds\/[0-9a-f]{16}\.png$/.test(uploaded.url))
 
-  console.log('\n== path traversal / bad names rejected (400) ==')
-  const badNames = [
-    '/ui-liteglass/backgrounds/../../etc/passwd',
-    '/ui-liteglass/backgrounds/..',
-    '/ui-liteglass/backgrounds/.',
-    '/ui-liteglass/backgrounds/x.png',
-    '/ui-liteglass/backgrounds/nothexatall.png',
-    '/ui-liteglass/backgrounds/../../secret'
-  ]
-  for (const bad of badNames) {
-    res = await webServer.dispatch('GET', bad, {})
-    check('reject ' + JSON.stringify(bad.split('/').pop()), res.statusCode === 400)
-  }
+  const name = uploaded.url.split('/').pop()
+  res = await services.webServer.dispatch('GET', uploaded.url, AUTH)
+  check('background served byte-identical', res.statusCode === 200 && Buffer.compare(res.rawBody, PNG) === 0)
+  check('background content type', res.headers['Content-Type'] === 'image/png')
+  check('background cache is private', String(res.headers['Cache-Control']).startsWith('private'))
 
-  console.log('\n== missing well-formed background → 404 ==')
-  res = await webServer.dispatch('GET', '/ui-liteglass/backgrounds/' + '0'.repeat(16) + '.png', {})
-  check('missing bg 404', res.statusCode === 404)
+  console.log('\n== traversal + missing file ==')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/backgrounds/..%2Fconfig.json', AUTH)
+  check('traversal name rejected (400)', res.statusCode === 400)
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/backgrounds/' + '0'.repeat(16) + '.png', AUTH)
+  check('missing background 404', res.statusCode === 404)
 
-  console.log('\n== traversal via config write must not escape DSH_HOME ==')
-  // config.json path is fixed; no user-controlled path. Verify nothing was
-  // written outside tmpHome by checking tmpHome parent is clean.
+  console.log('\n== unreferenced files are pruned, referenced ones kept ==')
+  const oldFile = join(backgroundsDir, 'a'.repeat(16) + '.png')
+  const refFile = join(backgroundsDir, 'b'.repeat(16) + '.png')
+  await writeFile(oldFile, PNG)
+  await writeFile(refFile, PNG)
+  const old = new Date(Date.now() - 3 * 60 * 60 * 1000)
+  await utimes(oldFile, old, old)
+  await utimes(refFile, old, old)
+  await writeFile(configFile, JSON.stringify({ backgroundImage: `/ui-liteglass/backgrounds/${'b'.repeat(16)}.png` }))
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/background', { ...AUTH, 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.from('new')]))
+  check('second upload accepted', JSON.parse(res.body).ok === true)
+  check('stale unreferenced file pruned', await stat(oldFile).then(() => false, () => true))
+  check('referenced file kept', await stat(refFile).then(() => true, () => false))
+  check('fresh upload kept', await stat(join(backgroundsDir, name)).then(() => true, () => false))
+
+  console.log('\n== dispose releases every route (live patch reload) ==')
+  ctx.dispose()
+  check('no routes left after dispose', services.webServer.active().length === 0)
+  let noRoute = false
+  try { await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH) } catch (e) { noRoute = /no matching route/.test(e.message) }
+  check('disposed plugin no longer serves', noRoute)
+
+  console.log('\n== no files written outside the temp DSH_HOME ==')
   const outsideProbe = join(tmpdir(), 'ui-liteglass-outside-marker')
   let outsideExists = false
   try { outsideExists = (await access(outsideProbe), true) } catch (e) { outsideExists = false }

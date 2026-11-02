@@ -4,9 +4,10 @@
 # of the plugin. The client half rides `dsh.client` in package.json and is
 # served by client-modules at /plugins/dsh-ui-liteglass/client.js.
 #
-# `inject` is the HOST-side service list (the host apply reads `webServer` for
-# the config/background routes and `settings` for the authoritative native
-# theme preference). File I/O uses node:fs directly, so no `fs` service is
+# `inject` is the HOST-side service list: `webServer` serves the routes,
+# `connection` authenticates every request to them (the harness gate itself
+# only covers index and /api), and `settings` supplies the native theme
+# preference descriptor. File I/O uses node:fs directly, so no `fs` service is
 # required.
 - insert:
     - id: ui-liteglass
@@ -14,3 +15,4 @@
       inject:
         - webServer
         - settings
+        - connection
