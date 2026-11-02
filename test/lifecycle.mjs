@@ -22,7 +22,8 @@ const DEFAULT_CONFIG = {
   backgroundBlur: 0,
   panelOpacity: 1,
   panelBlur: 0,
-  accentColor: ''
+  accentColor: '',
+  accentButtons: false
 }
 const BACKGROUNDS = ['off', 'url', 'local']
 
@@ -38,6 +39,7 @@ function normalize(raw) {
   c.panelOpacity = finite(s.panelOpacity, DEFAULT_CONFIG.panelOpacity)
   c.panelBlur = finite(s.panelBlur, DEFAULT_CONFIG.panelBlur)
   c.accentColor = /^#[0-9a-fA-F]{3,8}$/.test(s.accentColor) ? String(s.accentColor) : ''
+  c.accentButtons = s.accentButtons === true
   return c
 }
 function eq(a, b) { try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false } }
@@ -113,7 +115,7 @@ check('post-remount edit kept', mountSettingsPanelRead().panelOpacity === 0.3)
 
 console.log('\n== 6. simulated page refresh / DSH restart (new session reloads persisted) ==')
 currentConfig = null
-persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700' }
+persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700', accentButtons: true }
 c = loadFromServer()
 check('reload restores persisted config', eq(c, persisted))
 check('reload config finite', finiteOk(c))
