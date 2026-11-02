@@ -28,33 +28,52 @@ from the shell's module table — **no build step, no bundled React**.
 The package is installed into a DSH profile as a **bundle**. Relevant metadata:
 
 - `dsh.bundle.patch` → `cordis.patch.yml` mounts the **host** half as a loader
-  entry (`id: ui-liteglass`, `inject: [webServer, settings]`).
+  entry (`id: ui-liteglass`, `inject: [webServer, settings, connection]`).
 - `dsh.client` declares `{ platform: "web", inject: ["@deepseek-ai/dsh-client-ui-theme"] }`.
   The `inject` here is the client-side dependency ordering — the theme client
   bundle must be active before this plugin's client.
 - `exports["."]` → `lib/index.js` (host apply), `exports["./client"]` →
   `lib/client.js` (served by client-modules at `/plugins/dsh-ui-liteglass/client.js`).
 
-The client is adopted by the Cordis client runner, which wraps `apply(ctx)` with a
-**guarded context**: service access is gated by the returned `inject` array
-(`exports.inject = ['slots', 'theme']`). Within that guard:
+The client is adopted by the Cordis client runner: service access is gated by the
+returned `inject` array (`exports.inject = ['slots', 'theme']`).
 
-- `theme.overrideTokens(source, tokens)` **forces `source` to this package id**
-  and auto-hangs the layer's disposer on the fiber. The plugin can never
-  impersonate or evict another source's override layer, and its own layer is
-  removed on unload.
-- `theme.setTheme` is intentionally never used.
+Two facts about that runner matter here, and only one of them is a convenience:
+
+- A **bundle-declared** client module (this package) is loaded *statically*; the
+  runner does **not** wrap it in the dynamic-package facade. In particular
+  `theme.overrideTokens` is the plain service call: it returns a disposer that
+  **the plugin owns**. Nothing pins the source or hangs the disposer on the fiber
+  for us, so `apply()` keeps that disposer in `themeDispose` and releases it from a
+  `ctx.effect` teardown — otherwise the layer would outlive an unload.
+- `theme.setTheme` is intentionally never used (`test/no-appearance.mjs` enforces
+  this against the real source).
 
 ## 3. Host routes
 
 Registered on the DSH `webServer` service (`webServer.register`):
 
-| Route | Kind | Purpose |
-|---|---|---|
-| `GET/POST /ui-liteglass/config` | exact | read / write the plugin config JSON |
-| `GET /ui-liteglass/state` | exact | expose the native theme preference (read-only; the plugin never changes it) |
-| `POST /ui-liteglass/background` | exact | accept an uploaded wallpaper image (raw body, content-type whitelisted) |
-| `GET /ui-liteglass/backgrounds/*` | prefix | serve stored wallpaper files |
+| Route | Kind | Purpose | Auth |
+|---|---|---|---|
+| `GET/POST /ui-liteglass/config` | exact | read / write the plugin config JSON | session |
+| `GET /ui-liteglass/state` | exact | expose the native theme preference via `settings.describe()` (read-only; the plugin never changes it) | session |
+| `POST /ui-liteglass/background` | exact | accept an uploaded wallpaper image (raw body, content-type + magic-byte checked) | session + same origin |
+| `GET /ui-liteglass/backgrounds/*` | prefix | serve stored wallpaper files | session |
+
+**Authentication.** DSH 0.2.x authenticates per route — only the index
+(`connection.authorizeIndex`) and `/api` (`connection.admit`) are covered by the
+harness gate, so a plugin route is public unless it checks
+`connection.isAuthenticated(req)` itself. Every route above does, and answers 401
+JSON (or 401 text for the image route) when the caller has no session. Writes
+additionally require a JSON content type (which cross-origin callers cannot send
+without a preflight) and an `Origin` whose host equals the request `Host`
+(`sameOrigin()`), so a form/text-plain post or a cross-site form cannot rewrite
+the config.
+
+**Lifecycle.** Every `webServer.register` call is wrapped in `ctx.effect`, so
+unloading the plugin releases the route. This matters for `patchReload: "live"`:
+a live patch that re-applies the plugin would otherwise throw
+`duplicate exact route` on the second registration.
 
 Route notes:
 
@@ -66,6 +85,13 @@ Route notes:
   (path traversal, bogus names) → 400; a well-formed but missing file → 404.
 - Upload MIME types are whitelisted (`png/jpeg/webp/gif`); anything else is
   rejected (e.g. `svg` is excluded deliberately).
+- The declared content type must **agree with the bytes**: the body is sniffed
+  for a PNG/JPEG/GIF/WebP signature, so a lying content type cannot store an
+  arbitrary file under an image name.
+- The upload body is read with a hard 8 MiB ceiling enforced *while streaming*
+  (`readLimitedBody`), so an oversized client is rejected with 413 instead of
+  being buffered first. Unreferenced, older-than-1h background files are pruned
+  after a successful write, which keeps the directory bounded.
 
 ## 4. Config & background persistence
 
@@ -83,6 +109,10 @@ $DSH_HOME/ui-liteglass/
   host sees the same wallpaper and config (multi-device).
 - The host `sanitizeConfig` normalizes/whitelists every field on write, so the
   on-disk config is always complete and finite (no `NaN`/`undefined`).
+- Config schema: `background` (`off|url|local`), `backgroundImage`,
+  `backgroundOpacity` (0–1), `backgroundBlur` (0–40), `panelOpacity` (0–1),
+  `panelBlur` (0–40), `accentColor` (hex or empty), `accentButtons` (boolean,
+  default `false`).
 - Config writes and reads go through the HTTP routes. This avoids the native
   settings transport for this plugin's data (see §8).
 
@@ -113,18 +143,30 @@ The layer is a set of `{ light, dark }` pairs; the native theme presenter picks
 the value matching the **active color scheme**, so Accent and glass surfaces
 adapt automatically when DSH switches Light/Dark.
 
-- **Glass**: when a wallpaper is active or `panelOpacity < 1`, a set of surface
-  tokens (`--dsw-alias-bg-base`, `--dsw-alias-bg-layer-1/2/3`,
-  `--dsw-specific-sidebar-fill`, `--dsw-specific-input-major`,
-  `--dsw-specific-menu`) is overridden to translucent `rgba(...)`.
-  A wallpaper forces a translucency ceiling (≤ 0.85) so the image shows through.
-- **Accent**: when `accentColor` is set, a small set of alias tokens
-  (`--dsw-alias-brand-primary`, `--dsw-alias-state-business-primary`,
+- **Glass**: when a wallpaper is active or `panelOpacity < 1`, a **surface
+  ladder** is overridden to translucent `rgba(...)`:
+  `--dsw-alias-bg-base` → `--dsw-specific-sidebar-fill` →
+  `--dsw-alias-bg-layer-1` → `--dsw-alias-bg-module-platform` →
+  `--dsw-specific-selector` → `--dsw-alias-bg-layer-2` →
+  `--dsw-specific-input-major` → `--dsw-alias-bg-layer-3` →
+  `--dsw-alias-bg-overlay` → `--dsw-specific-menu`.
+  Each step is slightly **more opaque** than the previous one, so nesting still
+  reads as depth above the wallpaper instead of collapsing into one flat tone
+  (DSH 0.2.x encodes depth with three distinct raised surface tones). A wallpaper
+  forces a translucency ceiling (≤ 0.85) so the image shows through.
+- **Accent**: when `accentColor` is set, emphasis tokens are overridden —
+  `--dsw-alias-state-business-primary`,
   `--dsw-specific-sidebar-nav-item-active-accent`,
-  `--dsw-alias-interactive-bg-hover-accent`) and two static deepseek palette
-  tones (`--dsw-static-deepseek-500/400`) are overridden. Reusing a `{light,dark}`
-  override via the native token system deliberately avoids building a second theme
-  system.
+  `--dsw-alias-interactive-bg-hover-accent` and the static palette tones
+  `--dsw-static-deepseek-500/400` (which feed link, info-button and business
+  aliases).
+- **Primary button is opt-in.** `--dsw-alias-brand-primary` is monochrome in DSH
+  0.2.x (near-black in light, near-white in dark), so recoloring it is a separate
+  `accentButtons` switch, default **off**. When on, it is paired with
+  `--dsw-alias-label-primary-foreground` chosen from the accent's relative
+  luminance (light accent → dark text), instead of assuming white always reads.
+- Reusing a `{light,dark}` override through the native token system deliberately
+  avoids building a second theme system.
 
 ## 7. `theme/change` — read-only listener
 
@@ -153,7 +195,7 @@ All plugin-owned identifiers are namespaced to avoid collisions:
 | CSS custom properties | `--dsh-liteglass-*` |
 | DOM class / data attribute | `dsh-ui-liteglass-*` / `[data-dsh-ui-liteglass=...]` |
 | injected `<style>` tags | `data-plugin="dsh-ui-liteglass"` |
-| settings.section id | `dsh-ui-liteglass` |
+| settings seat id (`settings.general.item`) | `dsh-ui-liteglass` |
 | theme override source id | forced to this package id by the runner |
 
 Canonical identity record (package / plugin id / rowId / display name):
@@ -185,15 +227,16 @@ Canonical identity record (package / plugin id / rowId / display name):
 
 ## 12. Tests
 
-Three Node test suites (no browser, no server required):
+Four Node test suites (no browser, no server required):
 
 | File | Scope |
 |---|---|
-| `test/host-smoke.mjs` | Host `apply` + routes against a throwaway `DSH_HOME`: config GET/POST + sanitization, `originalPreference`-free full-config normalization, background upload/serve (byte-identical), unsupported MIME rejection, traversal 400, missing 404, on-disk persistence. |
+| `test/host-smoke.mjs` | Host `apply` + routes against a throwaway `DSH_HOME`: 401 for every route without a session, config GET/POST + sanitization + content-type/Origin rejection, `settings.describe()`-based state, upload/serve (byte-identical), MIME + magic-byte rejection, 413 over the streamed limit, traversal 400, missing 404, unreferenced-file pruning, `dispose()` releasing every route. |
+| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. |
 | `test/lifecycle.mjs` | Client authoritative-store semantics: default merge, no NaN/undefined, remount hydrates from `currentConfig` (not `DEFAULT_CONFIG`), repeated close/open, reload restores persisted config. |
 | `test/no-appearance.mjs` | Source + logic check that the plugin never calls `theme.setTheme`, has no `appearance`/`originalPreference` fields, still uses `overrideTokens`, and recomputes tokens on `theme/change` without changing the native color mode. |
 
-Run all: `node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs`
+Run all: `npm test`
 
 The tests are state-model / host-level; real browser rendering is validated
 manually (Settings UI, wallpaper, glass, accent across Light/Dark).

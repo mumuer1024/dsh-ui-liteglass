@@ -47,7 +47,7 @@
 |---|---|
 | package | `dsh-ui-liteglass` |
 | display name | **LiteGlass** |
-| plugin id（client module / settings.section / theme source） | `dsh-ui-liteglass` |
+| plugin id（client module / 设置行座位 / theme source） | `dsh-ui-liteglass` |
 | rowId / wiring.id（loader entry / skin-market） | `ui-liteglass` |
 
 `rowId` 与 `cordis.patch.yml` 中的 loader entry id 一致，皮肤市场用它做互斥接线。
@@ -55,11 +55,13 @@
 
 ## 兼容性
 
-- **Supported（声明支持）**：DeepSeek Harness `0.1.0-rc` 系列（当前 release-candidate
-  线）。插件只使用稳定的官方缝（`webServer`、`settings`、`theme.overrideTokens`、
-  `dsh.client` inject）。
-- **Tested with（已验证）**：DeepSeek Harness `0.1.0-rc.7`（开发运行时；client theme
-  bundle `0.1.0-rc.8`）。
+- **Supported（声明支持）**：DeepSeek Harness `0.2.1-rc` 线。插件只使用稳定的官方缝
+  （`webServer.register`、`ctx.effect`、`connection` 鉴权服务、`settings.describe()`、
+  `theme.overrideTokens`、`dsh.client` inject、`settings.general.item` 插槽）。
+- **Tested with（已验证）**：DeepSeek Harness `0.2.1-rc.2`（client theme 与 settings
+  shell 同属该构建）。
+- **不支持**：`0.1.0-rc` 线。`0.2.0` 依赖 `connection` 服务与 `settings.describe()`，
+  这两者在旧线中都不存在。
 
 DeepSeek Harness 仍在快速迭代，未来版本可能改变插件接口；以上支持范围是声明，
 而非向前兼容承诺。
@@ -82,21 +84,26 @@ dsh --profile web
 如需固定到某个具体版本，可在 URL 后附加 tag：
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.1.0'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.0'
 ```
 
 `dsh plugin add` 会在首次使用时初始化 profile，并自动接入 bundle。之后启动 Web UI，
-打开 **设置 → 外观 (Appearance)** 即可。
+打开 **设置 → 通用 (General)**，LiteGlass 区块就在原生 **外观 (Appearance)** 行下方。
 
 ## 配置
 
-打开 **设置 → 外观 (Appearance)**（插件在该页新增了自己的分区）：
+打开 **设置 → 通用 (General)**（插件向该页贡献一个区块，位于原生外观行下方）：
 
 - **背景**：关闭 / URL / 本地上传；背景不透明度；背景模糊。
 - **面板不透明度**：主界面表面的半透明程度。
-- **重点色**：选择颜色，或恢复原生值。
+- **重点色**：选择颜色，或恢复原生值。重点色作用于强调态（选中、链接、信息填色、
+  侧栏标记）；**彩色主按钮**是另一个默认关闭的开关，开启后才额外染主按钮——DSH 0.2.x
+  的主按钮是单色填充，默认接管会破坏这一设计。
 
 配置保存在 DSH 主机端，因此通过不同设备访问时也会使用同一套外观配置。
+
+插件所有路由都要求已登录的 DSH 会话，并拒绝跨站写请求；能访问主机的未认证访客既读
+不到也改不了插件配置。
 
 ## 卸载
 
@@ -113,13 +120,19 @@ dsh plugin --profile web remove dsh-ui-liteglass
   背景模糊会破坏设置页 / 浮层定位，因此该效果被禁用。背景模糊与面板透明是可用的，
   不受影响。
 - 颜色模式（Light / Dark / System）始终由 DSH 原生设置控制——本插件不提供颜色模式切换。
+- 设置区块注册进 `settings.general.item` 插槽；若某个组合没有通用设置页，就没有承载位，
+  该区块不会出现。
 
 ## 开发 / 测试
 
 内置 Node 测试覆盖 host 路由、客户端状态模型，以及“不控制颜色模式”的保证：
 
 ```sh
-node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs
+npm test
+# host-smoke       路由：鉴权、归一化、上传限制、回收、dispose
+# client-contract  设置位置、token 层、重点色配对、卸载还原
+# lifecycle        配置存储
+# no-appearance    绝不触碰原生颜色模式
 ```
 
 `npm publish` 会经 `prepublishOnly` 先跑同一套测试。设计细节见 `docs/ARCHITECTURE.md`。

@@ -6,7 +6,8 @@
 | 审计基线 | DeepSeek Harness **0.2.1-rc.2**（CLI 与全部 `@deepseek-ai/dsh-*` 包） |
 | 审计对象 | `dsh-ui-liteglass@0.1.0`（本仓库，HEAD `586943c`） |
 | 线上安装 | `web` profile 的 `dsh.profile.bundles` 之一；安装副本 `lib/` 与本仓库逐字节一致 |
-| 性质 | **只读审计**；本文件是唯一新增产物，未修改源码、配置或线上环境 |
+| 性质 | **只读审计**；本次审计未修改源码、配置或线上环境 |
+| 后续 | §7 记录按 P0+P1 实施的 `v0.2.0` 修复；§1–§3 与附录为**审计时 0.1.0 基线**快照 |
 
 ---
 
@@ -190,6 +191,37 @@
 
 ---
 
+## 7. 修复记录（v0.2.0，已实施）
+
+审计结论经确认后按 **P0 + P1** 实施，版本定为 `0.2.0`（含行为变更与新增配置字段，
+按 semver 走 minor）。本节记录每条审计项的落地方式；上文 §1–§3 保留为**审计时**的
+0.1.0 基线，不再代表当前代码。
+
+| 审计项 | 修复 | 落地位置 |
+|---|---|---|
+| P0-1 `settings.get()` 已不存在 | 改读 `settings.describe()`，按 `ns === 'ui-theme'` 取 `value.preference`，缺失时回退 `system` | `lib/index.js` — `nativePreference()` |
+| P0-2 路由完全未鉴权 | 全部 4 条路由先过 `connection.isAuthenticated(req)`（否则 401）；写路由再加同源校验与 JSON content-type 强制（跨站表单无法形成该请求） | `lib/index.js` — `authorized()` / `sameOrigin()` |
+| P0-3 无 `ctx.effect`，live reload 抛 duplicate | 每次 `webServer.register` 都包进 `ctx.effect`，卸载即释放路由 | `lib/index.js` — `route()` |
+| P1-1 设置入口分裂 | 注册进 `settings.general.item`（原生 Appearance 行下），不再另开一个同名「外观」页 | `lib/client.js` — `apply()` |
+| P1-2 token 语义漂移 | 表面改为**单调递增不透明度阶梯**（含 `--dsw-alias-bg-overlay`、`bg-module-platform`、`specific-selector`）；`brand-primary` 改为默认关闭的 `accentButtons` 开关，开启时成对写入按亮度选取的 `label-primary-foreground` | `lib/client.js` — `SURFACE_LADDER` / `buildTokens()` |
+| P1-3 卸载不还原 | 保存 `overrideTokens` 返回的 disposer 并在 `ctx.effect` 清理时释放，同时移除壁纸节点 | `lib/client.js` — `themeDispose` / teardown effect |
+| P1-4 上传面硬化 | 流式读取时即执行 8 MiB 上限（超限 413，不先缓冲）；magic byte 与实际 content-type 必须一致；缓存改 `private`；成功后回收 1 小时以上且无人引用的旧文件 | `lib/index.js` — `readLimitedBody()` / `sniffImageExt()` / `pruneBackgrounds()` |
+
+配置 schema 新增 `accentButtons`（boolean，默认 `false`）；`cordis.patch.yml` 的 `inject`
+增加 `connection`；`package.json` 升至 `0.2.0`。
+
+**验证**：`npm test` 四套共 98 项全通过（host 路由与鉴权/限流/回收、真实客户端
+`apply()` 契约、配置状态机、不触碰原生颜色模式）。**未验证**：浏览器实际渲染、
+线上重装后的行为、反代 https 下 cookie 语义——与 §5 相同。
+
+**未做**（仍为后续版本）：§2 的 P2 全部项（i18n、a11y、别名映射收窄的实测依据）、
+§3 的 v0.3.0 与 v0.4.0、以及可选的 `storageDomain` 迁移。
+
+**线上状态**：本次未改动 `/root/.dsh/`、未重装插件、未重启服务，生产仍运行
+`dsh-ui-liteglass@0.1.0`；本仓库代码与其安装副本已不再逐字节一致。
+
+---
+
 ## 附录 A：DSH 侧参照索引
 
 | 主题 | 位置 |
@@ -207,7 +239,7 @@
 | `DSH_HOME` 解析 | `@deepseek-ai/dsh-home-paths` `lib/index.js` — `resolveDshHome()` |
 | 插件规范（UI） | `dsh-agent-preset/skills/cordis-plugin-development/references/{ui-plugin,practices}.md` |
 
-## 附录 B：插件侧关键位置
+## 附录 B：插件侧关键位置（审计时 0.1.0 基线）
 
 | 主题 | 位置 |
 |---|---|

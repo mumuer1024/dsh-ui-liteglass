@@ -48,7 +48,7 @@ Appearance settings — under [`docs/screenshots/`](docs/screenshots/), wired in
 |---|---|
 | package | `dsh-ui-liteglass` |
 | display name | **LiteGlass** |
-| plugin id (client module / settings.section / theme source) | `dsh-ui-liteglass` |
+| plugin id (client module / settings row seat / theme source) | `dsh-ui-liteglass` |
 | rowId / wiring.id (loader entry / skin-market) | `ui-liteglass` |
 
 `rowId` matches the loader entry id in `cordis.patch.yml`, which is what skin
@@ -57,11 +57,14 @@ record.
 
 ## Compatibility
 
-- **Supported:** the DeepSeek Harness `0.1.0-rc` line (the current release-candidate
-  series). The plugin uses only stable official seams (`webServer`, `settings`,
-  `theme.overrideTokens`, `dsh.client` inject).
-- **Tested with:** DeepSeek Harness `0.1.0-rc.7` (development runtime; client theme
-  bundle `0.1.0-rc.8`).
+- **Supported:** the DeepSeek Harness `0.2.1-rc` line. The plugin uses only stable
+  official seams (`webServer.register`, `ctx.effect`, the `connection`
+  authentication service, `settings.describe()`, `theme.overrideTokens`,
+  `dsh.client` inject and the `settings.general.item` slot).
+- **Tested with:** DeepSeek Harness `0.2.1-rc.2` (client theme bundle and settings
+  shell from the same build).
+- **Not supported:** the `0.1.0-rc` line. `0.2.0` requires the `connection`
+  service and the `settings.describe()` API, neither of which exists there.
 
 DeepSeek Harness is still evolving quickly, so a future release may change plugin
 interfaces; the supported range above is a declaration, not a promise of
@@ -85,21 +88,31 @@ dsh --profile web
 To pin a specific release, add the tag:
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.1.0'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.0'
 ```
 
 `dsh plugin add` initializes the profile on first use and wires the bundle
-automatically. After that, start the Web UI and open **Settings → Appearance**.
+automatically. After that, start the Web UI and open **Settings → General**; the
+LiteGlass block sits directly under the native **Appearance** row.
 
 ## Configuration
 
-Open **Settings → Appearance** (the plugin adds its own section there):
+Open **Settings → General** (the plugin contributes a block to that page, right
+below the native Appearance row):
 
 - **Background**: Off / URL / local upload; background opacity; background blur.
 - **Panel transparency**: how translucent the main surfaces are.
-- **Accent color**: pick a color, or reset to the native value.
+- **Accent color**: pick a color, or reset to the native value. Accent colors the
+  emphasis states (selection, links, info fills, sidebar markers). **Colorful
+  primary buttons** is a separate, default-off switch that additionally paints
+  the primary button — on by default it would override the monochrome primary
+  fill that DSH 0.2.x uses.
 
 Changes are saved to the server and shared across devices that reach the DSH host.
+
+All plugin routes require a signed-in DSH session and reject cross-origin writes,
+so an unauthenticated visitor who can reach the host cannot read or rewrite the
+plugin config.
 
 ## Uninstallation
 
@@ -120,6 +133,9 @@ them gone.
   and panel transparency are functional and are not affected.
 - The color mode (Light / Dark / System) is always controlled by DSH native
   settings — this plugin does not provide a color-mode switch.
+- The settings block is registered into the `settings.general.item` slot. A
+  composition that ships without the General settings page has no seat for it,
+  so the block simply does not appear there.
 
 ## Development / Testing
 
@@ -127,7 +143,11 @@ Automated Node test suites cover the host routes, the client state model, and th
 no-color-mode guarantee:
 
 ```sh
-node test/host-smoke.mjs && node test/lifecycle.mjs && node test/no-appearance.mjs
+npm test
+# host-smoke       routes: auth, sanitization, upload limits, pruning, dispose
+# client-contract  settings seat, token layer, accent pairing, unload restore
+# lifecycle        config store
+# no-appearance    never touches the native color mode
 ```
 
 `npm publish` runs the same suites via `prepublishOnly`. See
