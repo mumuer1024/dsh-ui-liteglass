@@ -219,25 +219,29 @@ All plugin-owned identifiers are namespaced to avoid collisions:
 Canonical identity record (package / plugin id / rowId / display name):
 [`docs/IDENTITY.md`](IDENTITY.md).
 
-## 10. Background layer & panel blur
+## 10. Background layer & overlay blur
 
 - Wallpaper is a fixed, non-interactive layer `.dsh-ui-liteglass-bg`
   (`position:fixed; z-index:0; pointer-events:none`), inserted before `#root`, with
   `filter: blur(...)` and `opacity` driven by CSS variables.
-- **Panel `backdrop-filter` blur is disabled.** Applying `backdrop-filter` to the
-  three column containers (`.pI_x6G_sidebarCol/centerCol/detailsCol`) created a
-  containing block / stacking context that broke `position:fixed` overlays (the
-  Settings page shifted into the sidebar). The `panelBlur` value is still stored
-  but has **no visual effect** in the current build. Glass is achieved with
-  translucent token surfaces + a blurred background layer only. Re-enabling panel
-  blur requires finding an inner container that does not alter fixed-position
-  layout semantics — not the three columns.
+- **Overlay blur is a token override, not CSS.** `panelBlur` writes DSH's own
+  `--dsw-mask-blur` (shipped as `none`) for both palettes, so every modal mask —
+  Settings and any other masked dialog — frosts the page behind it. Nothing
+  targets DSH's DOM and 0 writes `none` back.
+- **Why the panels are not filtered themselves.** The frame arranges the sidebar,
+  centre and right bar as parallel grid tracks over the wallpaper, so a
+  `backdrop-filter` on them would blur the same image `backgroundBlur` already
+  blurs; it also makes each column a containing block for `position:fixed`
+  descendants, which is what shifted overlays in the `0.1.0` line. Glass is
+  translucent token surfaces plus a blurred wallpaper layer.
+- Menu and popover material blur (`--dsw-menu-backdrop-filter`,
+  `blur(40px) saturate(150%)`) is native and deliberately untouched.
 
 ## 11. Graceful degradation / compatibility
 
-- Build-coupled `.pI_x6G_*` classes are not used as hard dependencies in the
-  current client (the panel blur rule that referenced them is disabled); a missing
-  selector degrades gracefully rather than breaking the UI.
+- The client depends on no DSH CSS-module class at all: the injected stylesheet
+  defines only the plugin's own classes and consumes tokens, so a DSH rebuild
+  cannot break it by renaming `.pI_x6G_*` selectors.
 - Server-side persistence means config and wallpaper are host-authoritative and
   multi-device.
 - Settings panel and visuals are applied defensively inside `try/catch`; a failure
@@ -257,4 +261,5 @@ Four Node test suites (no browser, no server required):
 Run all: `npm test`
 
 The tests are state-model / host-level; real browser rendering is validated
-manually (Settings UI, wallpaper, glass, accent across Light/Dark).
+manually (Settings UI, dropdown controls, wallpaper, glass, overlay blur behind a
+modal, accent across Light/Dark).

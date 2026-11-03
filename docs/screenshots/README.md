@@ -11,11 +11,16 @@ and this README.
 |---|---|
 | `preview-light.webp` | light main interface — wallpaper + glass panels + accent |
 | `preview-dark.webp` | dark main interface — same surfaces under the native Dark scheme |
-| `settings-light.webp` | light Appearance settings (background / panel / accent controls) |
-| `settings-dark.webp` | dark Appearance settings |
+| `settings-light.webp` | light LiteGlass settings block (Settings → General) |
+| `settings-dark.webp` | dark LiteGlass settings block |
 
 All are 2560×1279 (2:1) WebP at quality 90, 54–67 KB each — full-resolution
 captures of the running plugin, no resizing, cropping, or editing.
+
+**Stale captures:** the two settings shots predate the 0.2.0 move into Settings →
+General and the 0.2.2/0.2.3 control rework (dropdowns, preset swatches, hex
+field), so they show the older panel. Recapture both before updating the market
+listings; the two mode previews are unaffected.
 
 ## How they are wired up
 
