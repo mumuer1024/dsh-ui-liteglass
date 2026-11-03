@@ -323,7 +323,7 @@ const groupOf = (label) => nodes.find((n) => n.type === 'select' && n.props['ari
 const bgGroup = groupOf('背景不透明度')
 const blurGroup = groupOf('背景模糊')
 const panelGroup = groupOf('面板不透明度')
-const panelBlurGroup = groupOf('面板模糊')
+const panelBlurGroup = groupOf('浮层模糊')
 check('the parameters are dropdowns, not step chips',
   [bgGroup, blurGroup, panelGroup, panelBlurGroup].every((g) => g !== undefined))
 check('background opacity dropdown offers 11 choices (0%..100%)',
@@ -333,7 +333,7 @@ check('panel opacity dropdown offers 10 choices (10%..100%)',
 check('blur dropdown is 0..30px in 5px steps',
   blurGroup !== undefined && blurGroup.children.length === 7 && textsOf(blurGroup).includes('0px') && textsOf(blurGroup).includes('30px'))
 check('blur offers nothing above 30px', !textsOf(blurGroup).includes('35px'))
-check('panel blur dropdown uses the same grid',
+check('the blur mask dropdown uses the same grid',
   panelBlurGroup !== undefined && panelBlurGroup.children.length === 7 && textsOf(panelBlurGroup).includes('30px'))
 
 const fileInput = nodes.find((n) => n.type === 'input' && n.props.type === 'file')
@@ -401,20 +401,17 @@ check('an accepted upload is sent exactly once', uploadsSent() === beforeOk + 1)
 check('success is reported to the user', /已上传并应用/.test(textsOf(uploadRun.ui.tree()).join(' ')))
 check('no error banner is left after success', alertText() === '')
 
-console.log('\n== 11. panel blur activation and the custom hex field ==')
-check('panel blur is off by default (no marker on <html>)',
-  panelRun.dom.html.attrs['data-dsh-ui-liteglass-panel-blur'] === undefined)
+console.log('\n== 11. mask blur token and the custom hex field ==')
+const tokensOf = (run) => run.themeCalls[run.themeCalls.length - 1].tokens
+const maskOf = (run) => tokensOf(run)['--dsw-mask-blur']
+check('panel blur defaults to the platform value (none)',
+  maskOf(panelRun) !== undefined && maskOf(panelRun).light === 'none' && maskOf(panelRun).dark === 'none')
 const blurRun = await run({ ...baseConfig, panelBlur: 10 })
-check('enabling panel blur marks the root element',
-  blurRun.dom.html.attrs['data-dsh-ui-liteglass-panel-blur'] === '')
-check('the blur strength reaches its CSS variable',
-  String(blurRun.dom.html.style['--dsh-liteglass-panel-blur']) === '10px')
+check('panel blur drives the mask token for both themes',
+  maskOf(blurRun).light === 'blur(10px)' && maskOf(blurRun).dark === 'blur(10px)')
 const cssText = String(blurRun.dom.head.children[0].textContent)
-check('the blur rules are attribute-gated and target the three columns',
-  cssText.includes(':root[data-dsh-ui-liteglass-panel-blur]') && cssText.includes('_sidebarCol') &&
-  cssText.includes('_centerCol') && cssText.includes('[data-rightbar-col]'))
-check('the rules are inert while the setting stays at 0',
-  String(panelRun.dom.html.style['--dsh-liteglass-panel-blur']) === '0px')
+check('the stylesheet leaves DSH column classes alone',
+  !cssText.includes('_sidebarCol') && !cssText.includes('_centerCol') && !cssText.includes('data-rightbar-col'))
 
 const hexRun = await run({ ...baseConfig, accentColor: '' })
 hexRun.renderPanel()
