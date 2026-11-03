@@ -164,16 +164,14 @@ adapt automatically when DSH switches Light/Dark.
   document carries only `preference` and the font-size fields — so the palette is
   plugin-owned (`ACCENT_PRESETS` in `lib/client.js`). An off-palette value that
   predates the change is still applied and is labelled as a custom color.
-- **Panel blur**: opt-in `backdrop-filter` on the three column containers
-  (`[class*="_sidebarCol"]`, `[class*="_centerCol"]`, `[data-rightbar-col]`),
-  gated by `data-dsh-ui-liteglass-panel-blur` on `<html>` plus a
-  `--dsh-liteglass-panel-blur` length, both written by `applyPanelBlur()`. At 0
-  the attribute is removed, so the rules do not exist at all and the layout is
-  bit-identical to blur-off. Selectors use class *suffixes* rather than full
-  CSS-module hashes: a rebuild that renames the columns drops the effect instead
-  of mis-targeting. Because the columns are grid tracks over the wallpaper, the
-  effect equals background blur in the plain layout and only separates when a
-  panel covers other content.
+- **Overlay blur** (`panelBlur`): a token override, not CSS — `--dsw-mask-blur`
+  is set to `blur(Npx)` for both palettes (DSH ships `none`) and every modal mask
+  consumes it, so Settings and any other masked dialog frost the page behind
+  them. No selector touches DSH's DOM, and 0 writes `none` back. Column-level
+  `backdrop-filter` was removed on purpose: the columns are grid tracks over the
+  wallpaper, so blurring them reproduces background blur pixel for pixel. Menu
+  and popover material blur (`--dsw-menu-backdrop-filter`, 40px saturate 150%)
+  is native and deliberately left untouched.
 - **Accent**: when `accentColor` is set, emphasis tokens are overridden —
   `--dsw-alias-state-business-primary`,
   `--dsw-specific-sidebar-nav-item-active-accent`,
@@ -252,7 +250,7 @@ Four Node test suites (no browser, no server required):
 | File | Scope |
 |---|---|
 | `test/host-smoke.mjs` | Host `apply` + routes against a throwaway `DSH_HOME`: 401 for every route without a session, config GET/POST + sanitization + content-type/Origin rejection, `settings.describe()`-based state, upload/serve (byte-identical), MIME + magic-byte rejection, 413 over the streamed limit, traversal 400, missing 404, unreferenced-file pruning, `dispose()` releasing every route. |
-| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub and a hook runtime, so the panel itself is rendered and inspected: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. Panel controls: no color picker or slider, nine preset swatches with a native reset plus a plain hex field (invalid codes rejected without a write), four dropdowns (11/10 opacity choices, 7 blur choices capped at 30px), the 8 MiB ceiling stated up front, and panel blur switching the root marker attribute on and off. Upload flow: an oversized file never reaches the network, a 413 is explained, a wrong format is refused, a normal upload is sent once and reported. |
+| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub and a hook runtime, so the panel itself is rendered and inspected: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. Panel controls: no color picker or slider, nine preset swatches with a native reset plus a plain hex field (invalid codes rejected without a write), four dropdowns (11/10 opacity choices, 7 blur choices capped at 30px), the 8 MiB ceiling stated up front, and overlay blur driving the mask token for both palettes. Upload flow: an oversized file never reaches the network, a 413 is explained, a wrong format is refused, a normal upload is sent once and reported. |
 | `test/lifecycle.mjs` | Client authoritative-store semantics: default merge, no NaN/undefined, remount hydrates from `currentConfig` (not `DEFAULT_CONFIG`), repeated close/open, reload restores persisted config. |
 | `test/no-appearance.mjs` | Source + logic check that the plugin never calls `theme.setTheme`, has no `appearance`/`originalPreference` fields, still uses `overrideTokens`, and recomputes tokens on `theme/change` without changing the native color mode. |
 

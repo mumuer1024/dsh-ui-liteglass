@@ -114,15 +114,19 @@ below the native Appearance row):
   a separate, default-off switch that additionally paints the primary button — on
   by default it would override the monochrome primary fill that DSH 0.2.x uses.
 
-**Panel blur** applies a backdrop filter to the three column containers, so a
-panel that covers other content — the right details panel hanging over the
-conversation, or the narrow-window sidebar drawer — frosts what sits behind it.
-In the plain three-column layout the only thing behind a panel is the wallpaper,
-which the background blur already blurs, so the two settings look alike there.
-The rules are attribute-gated: setting panel blur back to 0 removes them without
-a reload. They select the columns by class suffix (`_sidebarCol`, `_centerCol`)
-and by `[data-rightbar-col]`, so a DSH build that renames them silently stops
-matching instead of breaking the layout.
+**Overlay blur** (the `panelBlur` setting) frosts what is behind a modal layer:
+open Settings and the page behind it falls out of focus. It is implemented purely
+by overriding DSH's own `--dsw-mask-blur` token — the platform ships it as `none`
+and every mask that dims the page for a dialog consumes it — so no DOM selector,
+no layout change, and 0 restores `none` immediately.
+
+Two things it deliberately does **not** do. Popover and tool panels already ship
+with their own material blur (`--dsw-menu-backdrop-filter`, 40px + 150% saturate),
+so the plugin leaves that alone. And the sidebar columns and the composer sit
+over nothing but the wallpaper: a backdrop filter there blurs the same image the
+background blur already blurs, which is exactly why the previous column-based
+attempt looked identical to background blur. Use **background blur** when the
+goal is a soft wallpaper.
 
 Changes are saved to the server and shared across devices that reach the DSH host.
 
