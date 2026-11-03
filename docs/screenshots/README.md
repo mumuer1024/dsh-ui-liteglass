@@ -11,16 +11,14 @@ and this README.
 |---|---|
 | `preview-light.webp` | light main interface — wallpaper + glass panels + accent |
 | `preview-dark.webp` | dark main interface — same surfaces under the native Dark scheme |
-| `settings-light.webp` | light LiteGlass settings block (Settings → General) |
-| `settings-dark.webp` | dark LiteGlass settings block |
+| `settings-light.png` | light LiteGlass settings block (Settings → General) |
+| `settings-dark.png` | dark LiteGlass settings block |
 
-All are 2560×1279 (2:1) WebP at quality 90, 54–67 KB each — full-resolution
-captures of the running plugin, no resizing, cropping, or editing.
-
-**Stale captures:** the two settings shots predate the 0.2.0 move into Settings →
-General and the 0.2.2/0.2.3 control rework (dropdowns, preset swatches, hex
-field), so they show the older panel. Recapture both before updating the market
-listings; the two mode previews are unaffected.
+Full-resolution captures of the running plugin, no resizing, cropping, or
+editing. The two mode previews are WebP at quality 90, 2560×1279 (2:1), ~68 KB
+each. The two settings shots are PNG, 2560×1247 (≈2.05:1), 0.8–0.9 MB each —
+PNG keeps the small UI text crisp, which matters most on the settings panel.
+They are the heaviest files in the repo; nothing else here is large.
 
 ## How they are wired up
 
@@ -39,7 +37,7 @@ Rules both markets enforce:
 
 ## Adding / updating captures
 
-- Replace the WebP in this directory (keep the filename) and keep the aspect
+- Replace the image in this directory (keep the filename) and keep the aspect
   ratio — do not crop important UI.
-- Re-validate `screenshots.json` after any change; keep each file reasonably
-  small (target < 500 KB; the current set is well under that).
+- Re-validate `screenshots.json` after any change. The mode previews stay small
+  (< 100 KB); a settings capture may be a ~1 MB PNG because legibility wins there.

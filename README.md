@@ -16,7 +16,7 @@ LiteGlass settings block — under [`docs/screenshots/`](docs/screenshots/), wir
 
 ![LiteGlass — dark mode](docs/screenshots/preview-dark.webp)
 
-![LiteGlass — settings block](docs/screenshots/settings-light.webp)
+![LiteGlass — settings block](docs/screenshots/settings-light.png)
 
 ## Features
 

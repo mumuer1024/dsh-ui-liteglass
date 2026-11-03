@@ -16,7 +16,7 @@
 
 ![LiteGlass — 深色模式](docs/screenshots/preview-dark.webp)
 
-![LiteGlass — 设置区块](docs/screenshots/settings-light.webp)
+![LiteGlass — 设置区块](docs/screenshots/settings-light.png)
 
 ## 功能
 
