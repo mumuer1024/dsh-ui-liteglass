@@ -441,5 +441,41 @@ check('a bare hex is normalized with # and saved',
 check('the error clears once a valid code is accepted',
   !textsOf(hexRun.ui.tree()).join(' ').includes('仅支持色号'))
 
+console.log('\n== 12. a failed read is never mistaken for an empty config ==')
+const failedRun = await run(panelConfig, async (url, opts) => {
+  const method = String((opts && opts.method) || 'GET').toUpperCase()
+  if (String(url).indexOf('/ui-liteglass/config') === 0 && method === 'GET') {
+    return { status: 401, json: async () => ({ ok: false, error: 'unauthorized' }) }
+  }
+  return { status: 200, json: async () => ({ ok: true, config: panelConfig }) }
+})
+failedRun.renderPanel()
+const failedPosts = failedRun.fetchCalls.filter((call) =>
+  call.url === '/ui-liteglass/config' && String(call.opts.method || 'GET').toUpperCase() === 'POST')
+check('a refused read triggers no write', failedPosts.length === 0)
+const failedText = textsOf(failedRun.ui.tree()).join(' ')
+check('the panel reports that the config could not be read',
+  /无法读取已保存的外观配置/.test(failedText) && /HTTP 401/.test(failedText))
+const failedNodes = []
+walk(failedRun.ui.tree(), (n) => failedNodes.push(n))
+check('no controls are offered while the read failed',
+  !failedNodes.some((n) => n.type === 'select' || n.type === 'button'))
+check('no token layer is applied from defaults', failedRun.themeCalls.length === 0)
+
+const repairRun = await run(panelConfig, async (url, opts) => {
+  const method = String((opts && opts.method) || 'GET').toUpperCase()
+  if (String(url).indexOf('/ui-liteglass/config') === 0 && method === 'GET') {
+    return { status: 200, json: async () => ({ ok: true, config: { panelOpacity: 0.33 } }) }
+  }
+  return { status: 200, json: async () => ({ ok: true, config: {} }) }
+})
+const repairs = repairRun.fetchCalls.filter((call) =>
+  call.url === '/ui-liteglass/config' && String(call.opts.method || 'GET').toUpperCase() === 'POST')
+check('a readable but partial document is repaired exactly once', repairs.length === 1)
+check('the repair carries the full schema', (() => {
+  const body = JSON.parse(repairs[0].opts.body)
+  return body.background !== undefined && body.accentButtons !== undefined && body.panelOpacity === 0.3
+})())
+
 console.log('\n== RESULT: ' + pass + ' passed, ' + fail + ' failed ==')
 if (fail > 0) process.exit(1)

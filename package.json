@@ -1,6 +1,6 @@
 {
   "name": "dsh-ui-liteglass",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "A lightweight appearance plugin for DeepSeek Harness: custom wallpaper, glass-like panel transparency, and accent color. Ships a host half plus a web client half in one npm package.",
   "type": "module",
   "main": "lib/index.js",

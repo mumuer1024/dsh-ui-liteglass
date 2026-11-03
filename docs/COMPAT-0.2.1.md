@@ -318,6 +318,62 @@ DSH 自身的“材质”体系里，浮层模糊已经是一个令牌：
 - 蒙层令牌是全局的：影响所有使用该令牌的对话框（包括其他插件的），这符合“浮层统一磨砂”的预期。
 - **未验证**：真实浏览器观感、以及不同页面（设置/插件弹窗）蒙层是否都走同一令牌。
 
+## 11. v0.2.4 修复：路由鉴权一直失败导致配置无法持久化
+
+> 现象（实测）：不重启服务、只是重新进入 Web 界面，插件看起来"重载"了，之前设置的
+> 背景 / 不透明度 / 重点色全部回到旧值，保存不生效。
+
+### 根因
+
+`lib/index.js` 的 `authorized()` 依赖 `connection.isAuthenticated(req)`。核对 0.2.1-rc.2 的
+`@deepseek-ai/dsh-client-connection/lib/index.js`：`HostConnectionService`（即
+`ctx.get('connection')` 拿到的对象）**没有这个方法**。它的方法列表是
+`constructor / rpc / fetch / requestRejection / admit / createPeer / admitConnection /
+isTrusted / publishPeer / authorizeConnect / authorizeIndex / authenticatedUrl /
+createSharedFetchHandler / registerFetchRoute / register / registerInterceptor`。
+
+`isAuthenticated` 属于内部的 `BrowserAuth`（同文件 546 行），由
+`HostConnectionService.admit()` 在内部调用。于是：
+
+```js
+if (!connection || typeof connection.isAuthenticated !== 'function') return false
+```
+
+对每一条请求都为真 → 4 条路由**一律 401**。后果连锁：
+
+1. 客户端 `GET /ui-liteglass/config` 拿到 401 → `load()` 把返回值当作"没有配置"，
+   `normalize({})` 得到 `DEFAULT_CONFIG` → 面板/视觉全部变成默认值（表现为"配置被重置"）；
+2. 随后的 `POST /ui-liteglass/config` 同样 401，而 `patch()` 忽略返回值 → 新值只活在内存里，
+   **刷新即丢**；
+3. 上传背景图同样 401（这条路径从未真正可用）。
+
+时间线印证：`/root/.dsh/ui-liteglass/config.json` 的最后一次写入停在 `15:51:12`，正是
+0.1.0 宿主（无鉴权）仍在运行的最后一刻；0.2.0 换上带鉴权宿主之后，该文件的 mtime 再没变过，
+而界面里改过的值（如 5px / 30%）从未落盘。
+
+### 修复
+
+| 位置 | 改动 |
+|---|---|
+| `lib/index.js` | `authorized()` → `admissionStatus(req)`：优先 `connection.requestRejection(req)`（Host/Origin 围栏 + 会话校验，`undefined` 表示放行），退而用 `connection.admit(req)`（`{peer}` 放行 / `{rejection}` 拒绝），并把围栏返回的 401/403 原样透传；删掉对不存在方法的猜测 |
+| `lib/client.js` | `load()` 不再把"读失败"当"空配置"：读失败时不提交默认值、不写盘，面板明示"无法读取已保存的外观配置（HTTP 401）"并隐藏控件；只有读成功才对残缺文档做修复写回。`patch()` 现在检查写结果，失败时在面板顶部显示"未能保存到服务端（HTTP xxx）" |
+| `test/host-smoke.mjs` | 假 `connection` 改成真实形状（`requestRejection`），新增"不可信 Host/Origin → 403 且不写入"用例。之前的假对象提供了 `isAuthenticated`，正是它让这个回归通过了测试 |
+| `test/client-contract.mjs` | 新增"读失败不得写盘 / 不得套用默认值 / 面板给出明确原因"与"读成功才对残缺文档修复一次"两条契约 |
+
+### 验证
+
+- `npm test` 141 项全过（host 41 / client 68 / lifecycle 19 / no-appearance 13）。
+- 真机复现证据：带合法 `dsh-auth-*` cookie 请求 `GET /ui-liteglass/config` 返回 401
+  `{"ok":false,"error":"unauthorized"}`（旧版代码）。
+- **未验证**：修复后的真机 200/写入落盘需要重启宿主后才能确认（本次不重启）。
+
+### 遗留
+
+- 0.2.0–0.2.3 期间"保存"过的值都只存在于当时的内存里；升级到 0.2.4 并重启后，
+  需要**重新设置一次**，此后才会真正落盘。
+- `docs/COMPAT` §5 与 §7 里关于"鉴权已生效"的记录以本节为准：那两节描述的是当时的意图，
+  实际未生效。
+
 ## 附录 A：DSH 侧参照索引
 
 | 主题 | 位置 |

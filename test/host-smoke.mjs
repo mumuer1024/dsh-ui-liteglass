@@ -115,6 +115,7 @@ function makeCtx(services) {
 
 const AUTH = { cookie: 'session=test' }
 const ANON = { 'x-test-anon': '1' }
+const UNTRUSTED = { 'x-test-untrusted': '1' }
 // A minimal PNG-signature body: enough for the magic-byte sniff.
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('liteglass-test')])
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('not-a-png')])
@@ -130,10 +131,15 @@ const configFile = join(dataDir, 'config.json')
 
 function makeServices(overrides = {}) {
   const webServer = makeWebServer()
+  // Mirrors HostConnectionService: it exposes requestRejection (Host/Origin
+  // fence plus browser-session check) and admit — NOT isAuthenticated, which
+  // lives on the internal BrowserAuth. A fixture with the wrong surface is what
+  // let the original all-401 regression ship.
   const connection = {
-    isAuthenticated(req) {
-      if (req.headers['x-test-anon'] === '1') return false
-      return req.headers.cookie === AUTH.cookie
+    requestRejection(req) {
+      if (req.headers['x-test-untrusted'] === '1') return 403
+      if (req.headers['x-test-anon'] === '1') return 401
+      return req.headers.cookie === AUTH.cookie ? undefined : 401
     }
   }
   const settings = { describe: () => [{ ns: 'ui-theme', value: { preference: 'dark' } }] }
@@ -159,6 +165,11 @@ try {
   check('anonymous upload → 401', res.statusCode === 401)
   res = await services.webServer.dispatch('GET', '/ui-liteglass/backgrounds/' + 'a'.repeat(16) + '.png', ANON)
   check('anonymous background GET → 401', res.statusCode === 401)
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/config', UNTRUSTED)
+  check('an untrusted Host/Origin is refused with 403, not 401', res.statusCode === 403)
+  res = await services.webServer.dispatch('POST', '/ui-liteglass/config', UNTRUSTED,
+    Buffer.from(JSON.stringify({ background: 'off' })))
+  check('an untrusted write writes nothing', res.statusCode === 403)
 
   console.log('\n== config read/write (full normalization) ==')
   res = await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH)

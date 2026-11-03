@@ -62,13 +62,18 @@ Registered on the DSH `webServer` service (`webServer.register`):
 
 **Authentication.** DSH 0.2.x authenticates per route — only the index
 (`connection.authorizeIndex`) and `/api` (`connection.admit`) are covered by the
-harness gate, so a plugin route is public unless it checks
-`connection.isAuthenticated(req)` itself. Every route above does, and answers 401
-JSON (or 401 text for the image route) when the caller has no session. Writes
-additionally require a JSON content type (which cross-origin callers cannot send
-without a preflight) and an `Origin` whose host equals the request `Host`
-(`sameOrigin()`), so a form/text-plain post or a cross-site form cannot rewrite
-the config.
+harness gate, so a plugin route is public unless it runs the check itself. The
+host service exposes exactly two admission entry points, `requestRejection(req)`
+(fence + session, returns `undefined` or 401/403) and `admit(req)` (returns
+`{peer}` or `{rejection}`); there is **no** `connection.isAuthenticated` on the
+service — that method belongs to the connection's internal `BrowserAuth` object,
+and testing for it made every route answer 401 (see
+[COMPAT §11](COMPAT-0.2.1.md)). Every route above calls `admissionStatus()` and
+refuses with the status the fence returned: 401 without a session, 403 for an
+untrusted Host/Origin. Writes additionally require a JSON content type (which
+cross-origin callers cannot send without a preflight) and an `Origin` whose host
+equals the request `Host` (`sameOrigin()`), so a form/text-plain post or a
+cross-site form cannot rewrite the config.
 
 **Lifecycle.** Every `webServer.register` call is wrapped in `ctx.effect`, so
 unloading the plugin releases the route. This matters for `patchReload: "live"`:
