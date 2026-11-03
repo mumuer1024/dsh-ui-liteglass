@@ -363,14 +363,19 @@ if (!connection || typeof connection.isAuthenticated !== 'function') return fals
 ### 验证
 
 - `npm test` 141 项全过（host 41 / client 68 / lifecycle 19 / no-appearance 13）。
-- 真机复现证据：带合法 `dsh-auth-*` cookie 请求 `GET /ui-liteglass/config` 返回 401
-  `{"ok":false,"error":"unauthorized"}`（旧版代码）。
-- **未验证**：修复后的真机 200/写入落盘需要重启宿主后才能确认（本次不重启）。
+- 修复前真机复现：带合法 `dsh-auth-*` cookie 请求 `GET /ui-liteglass/config` 返回
+  401 `{"ok":false,"error":"unauthorized"}`。
+- 修复后真机（重启至 0.2.4，宿主 `19:31:05` 启动）：
+  - 同一 `dsh-auth-*` cookie 下 `GET /ui-liteglass/config` → **200**，返回的就是磁盘上的配置；
+    `GET /ui-liteglass/state` → 200；匿名访问仍为 401。
+  - `config.json` 在 `19:37:23` 被真实写入（`backgroundBlur: 5`、`panelBlur: 5`、
+    `accentButtons: true` 等），而 0.2.0–0.2.3 期间该文件自 `15:51:12` 起从未变过。
+  - 维护者人工验收：改设置后**只刷新页面、不重启服务**，值保持不变 → 通过。
 
 ### 遗留
 
-- 0.2.0–0.2.3 期间"保存"过的值都只存在于当时的内存里；升级到 0.2.4 并重启后，
-  需要**重新设置一次**，此后才会真正落盘。
+- 0.2.0–0.2.3 期间"保存"过的值都只存在于当时的内存里，升级到 0.2.4 后需要
+  **重新设置一次**（已由维护者在验收时完成），此后正常落盘。
 - `docs/COMPAT` §5 与 §7 里关于"鉴权已生效"的记录以本节为准：那两节描述的是当时的意图，
   实际未生效。
 
