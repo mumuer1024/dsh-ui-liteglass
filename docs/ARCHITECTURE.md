@@ -111,7 +111,8 @@ $DSH_HOME/ui-liteglass/
   on-disk config is always complete and finite (no `NaN`/`undefined`).
 - Config schema: `background` (`off|url|local`), `backgroundImage`,
   `backgroundOpacity` (0–1, snapped to 0.1), `backgroundBlur` (0–30, snapped to
-  5), `panelOpacity` (0.1–1, snapped to 0.1), `panelBlur` (0–40, dormant),
+  5), `panelOpacity` (0.1–1, snapped to 0.1), `panelBlur` (0–30, snapped to 5,
+  0 = off),
   `accentColor` (hex or empty), `accentButtons` (boolean, default `false`).
 - Opacity and blur are quantized on write on both sides (`snap` / `snapNum`)
   because the panel edits them in segments — 10% steps and 5px steps — and a
@@ -163,6 +164,16 @@ adapt automatically when DSH switches Light/Dark.
   document carries only `preference` and the font-size fields — so the palette is
   plugin-owned (`ACCENT_PRESETS` in `lib/client.js`). An off-palette value that
   predates the change is still applied and is labelled as a custom color.
+- **Panel blur**: opt-in `backdrop-filter` on the three column containers
+  (`[class*="_sidebarCol"]`, `[class*="_centerCol"]`, `[data-rightbar-col]`),
+  gated by `data-dsh-ui-liteglass-panel-blur` on `<html>` plus a
+  `--dsh-liteglass-panel-blur` length, both written by `applyPanelBlur()`. At 0
+  the attribute is removed, so the rules do not exist at all and the layout is
+  bit-identical to blur-off. Selectors use class *suffixes* rather than full
+  CSS-module hashes: a rebuild that renames the columns drops the effect instead
+  of mis-targeting. Because the columns are grid tracks over the wallpaper, the
+  effect equals background blur in the plain layout and only separates when a
+  panel covers other content.
 - **Accent**: when `accentColor` is set, emphasis tokens are overridden —
   `--dsw-alias-state-business-primary`,
   `--dsw-specific-sidebar-nav-item-active-accent`,
@@ -241,7 +252,7 @@ Four Node test suites (no browser, no server required):
 | File | Scope |
 |---|---|
 | `test/host-smoke.mjs` | Host `apply` + routes against a throwaway `DSH_HOME`: 401 for every route without a session, config GET/POST + sanitization + content-type/Origin rejection, `settings.describe()`-based state, upload/serve (byte-identical), MIME + magic-byte rejection, 413 over the streamed limit, traversal 400, missing 404, unreferenced-file pruning, `dispose()` releasing every route. |
-| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub and a hook runtime, so the panel itself is rendered and inspected: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. Panel controls: no color picker or slider, nine preset swatches with a native reset, 11/10 opacity stops, 7 blur stops capped at 30px, the 8 MiB ceiling stated up front. Upload flow: an oversized file never reaches the network, a 413 is explained, a wrong format is refused, a normal upload is sent once and reported. |
+| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub and a hook runtime, so the panel itself is rendered and inspected: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. Panel controls: no color picker or slider, nine preset swatches with a native reset plus a plain hex field (invalid codes rejected without a write), four dropdowns (11/10 opacity choices, 7 blur choices capped at 30px), the 8 MiB ceiling stated up front, and panel blur switching the root marker attribute on and off. Upload flow: an oversized file never reaches the network, a 413 is explained, a wrong format is refused, a normal upload is sent once and reported. |
 | `test/lifecycle.mjs` | Client authoritative-store semantics: default merge, no NaN/undefined, remount hydrates from `currentConfig` (not `DEFAULT_CONFIG`), repeated close/open, reload restores persisted config. |
 | `test/no-appearance.mjs` | Source + logic check that the plugin never calls `theme.setTheme`, has no `appearance`/`originalPreference` fields, still uses `overrideTokens`, and recomputes tokens on `theme/change` without changing the native color mode. |
 

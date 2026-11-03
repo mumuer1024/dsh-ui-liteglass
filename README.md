@@ -104,16 +104,25 @@ below the native Appearance row):
   GIF and are capped at **8 MiB per file** — the ceiling is shown in the panel,
   and a file over it is refused in the browser before anything is sent. Failures
   are reported in the panel (too large, wrong format, expired session, network).
-- **Background opacity**: 10% steps. **Background blur**: 5px steps, up to 30px.
-- **Panel transparency**: 10% steps.
-- **Accent color**: nine presets and a native reset. DSH has no accent setting of
-  its own (`ui-theme` stores only the color mode and font sizes), so this palette
-  belongs to the plugin. **Colorful primary buttons** is a separate, default-off
-  switch that additionally paints the primary button — on by default it would
-  override the monochrome primary fill that DSH 0.2.x uses.
+- **Background opacity**, **background blur**, **panel opacity** and **panel
+  blur** are dropdowns: opacity in 10% steps, blur in 5px steps up to 30px. One
+  choice is one save, and there is no drag to fire a write per pixel.
+- **Accent color**: nine presets, a native reset, and a plain hex field for any
+  other code (`#RGB`, `#RRGGBB`, or `#RRGGBBAA` — no color picker). DSH has no
+  accent setting of its own (`ui-theme` stores only the color mode and font
+  sizes), so this palette belongs to the plugin. **Colorful primary buttons** is
+  a separate, default-off switch that additionally paints the primary button — on
+  by default it would override the monochrome primary fill that DSH 0.2.x uses.
 
-The stepped controls replaced continuous sliders on purpose: each click is one
-change, so a drag can no longer fire a save plus a token-layer rebuild per pixel.
+**Panel blur** applies a backdrop filter to the three column containers, so a
+panel that covers other content — the right details panel hanging over the
+conversation, or the narrow-window sidebar drawer — frosts what sits behind it.
+In the plain three-column layout the only thing behind a panel is the wallpaper,
+which the background blur already blurs, so the two settings look alike there.
+The rules are attribute-gated: setting panel blur back to 0 removes them without
+a reload. They select the columns by class suffix (`_sidebarCol`, `_centerCol`)
+and by `[data-rightbar-col]`, so a DSH build that renames them silently stops
+matching instead of breaking the layout.
 
 Changes are saved to the server and shared across devices that reach the DSH host.
 

@@ -241,6 +241,43 @@
 **未验证**：浏览器实际观感（9 个色块的实际排版/对比度）、9 个占位色号仍待维护者提供
 最终调色板后替换 `ACCENT_PRESETS`。
 
+## 9. v0.2.2 交互修正（第二轮实测）
+
+0.2.1 实测后按反馈再修三项。
+
+| 反馈 | 处理 | 落地位置 |
+|---|---|---|
+| 不透明度/模糊改用下拉菜单 | 四个参数（背景不透明度 11 档、面板不透明度 10 档、背景模糊 7 档、面板模糊 7 档）全部换成原生 `<select>`；一次选择一次提交 | `lib/client.js` — `Select` / `percentOptions` / `pixelOptions` |
+| 重点色维持现色号，增加自定义色号输入框（不要取色器） | 保留 9 个预设与「原生」；新增纯文本色号输入，只接受 `#RGB`/`#RRGGBB`/`#RRGGBBAA`（无 `#` 自动补），回车/失焦生效；非法输入保留原文并提示，不写盘 | `lib/client.js` — `commitHex` / `STYLE.hexInput` |
+| 调查面板模糊能否启用 | 见下方结论；已实现为可选功能（默认 0 = 关闭） | `lib/client.js` — `applyPanelBlur` + 属性门控 CSS |
+
+### 面板模糊：调查结论与实现方式
+
+**能做，但要先接受一个事实**：`_frame` 是 `position:relative` 的 grid 容器，
+`_sidebarCol` / `_centerCol` / `[data-rightbar-col]` 是三条并列的 grid 轨道。也就是说，
+“面板背后”在常规三栏布局里**只有壁纸**——而壁纸已被 `backgroundBlur`（`filter` on
+`.dsh-ui-liteglass-bg`）模糊过。所以常规布局下，面板模糊 ≈ 背景模糊，肉眼差别很小。
+
+**真正有差别的是“面板压在内容之上”的场景**：右侧详情面板在无轨道时浮在对话上、窄屏侧栏
+抽屉浮在对话上。这两处 `backdrop-filter` 会把下层的对话内容一起磨砂，是背景模糊给不了的。
+
+**为什么 0.1.0 当年会“把设置页挤到侧栏”**：给列容器加 `backdrop-filter` 会让它成为
+`position:fixed` 后代的包含块，并新建层叠上下文；当年的设置页不是 portal 到 `<body>`
+的。0.2.1 的 settings shell 走 `createPortal(…, document.body)`，因此该具体故障不再复现；
+残余风险只落在“列容器内部的 fixed 元素”上。当前代码里此类元素基本只有
+`dsh-client-ui-sidebar` 在 `[data-windows-titlebar]`（Windows 桌面壳）下的窗口按钮，
+浏览器/GUI 场景不触发。
+
+**实现取舍**：不碰 DSH 的布局，不新增包装元素，直接对三个列容器加 `backdrop-filter`；
+规则用类名**后缀**匹配（`[class*="_sidebarCol"]`）与稳定属性 `[data-rightbar-col]`，
+所以 DSH 改版只会让效果失效、不会误伤别的元素。全部规则挂在
+`:root[data-dsh-ui-liteglass-panel-blur]` 下，设置回 0 时属性被移除、规则整段不存在，
+恢复原布局无需刷新。
+
+**未验证**：真实浏览器下的观感与 GPU 开销（3 个整列 `backdrop-filter` 层），以及
+Windows 桌面壳下 fixed 窗口按钮是否位移——这两点只能由人工实测确认；若发现异常，把
+面板模糊设回 0 即可完全回退。
+
 ## 附录 A：DSH 侧参照索引
 
 | 主题 | 位置 |
