@@ -37,7 +37,7 @@ function normalize(raw) {
   c.backgroundOpacity = snap(finite(s.backgroundOpacity, DEFAULT_CONFIG.backgroundOpacity), 0.1, 0, 1)
   c.backgroundBlur = snap(finite(s.backgroundBlur, DEFAULT_CONFIG.backgroundBlur), 5, 0, 30)
   c.panelOpacity = snap(finite(s.panelOpacity, DEFAULT_CONFIG.panelOpacity), 0.1, 0.1, 1)
-  c.panelBlur = finite(s.panelBlur, DEFAULT_CONFIG.panelBlur)
+  c.panelBlur = snap(finite(s.panelBlur, DEFAULT_CONFIG.panelBlur), 5, 0, 30)
   c.accentColor = /^#[0-9a-fA-F]{3,8}$/.test(s.accentColor) ? String(s.accentColor) : ''
   c.accentButtons = s.accentButtons === true
   return c
@@ -120,7 +120,7 @@ check('post-remount edit kept', mountSettingsPanelRead().panelOpacity === 0.3)
 
 console.log('\n== 6. simulated page refresh / DSH restart (new session reloads persisted) ==')
 currentConfig = null
-persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 5, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700', accentButtons: true }
+persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 5, panelOpacity: 0.6, panelBlur: 10, accentColor: '#ff7700', accentButtons: true }
 c = loadFromServer()
 check('reload restores persisted config', eq(c, persisted))
 check('reload config finite', finiteOk(c))

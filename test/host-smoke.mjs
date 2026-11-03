@@ -177,10 +177,10 @@ try {
   check('bad json did not write config', await readFile(configFile, 'utf8').then(() => false, () => true))
 
   res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'application/json' },
-    Buffer.from(JSON.stringify({ background: 'url', backgroundImage: 'https://ex.com/w.jpg', backgroundBlur: '999', panelOpacity: -5, accentColor: 'red', accentButtons: 'yes' })))
+    Buffer.from(JSON.stringify({ background: 'url', backgroundImage: 'https://ex.com/w.jpg', backgroundBlur: '999', panelOpacity: -5, panelBlur: 120, accentColor: 'red', accentButtons: 'yes' })))
   const saved = JSON.parse(res.body).config
   check('config POST 200 + sanitized', res.statusCode === 200 && saved.ok !== false && saved.background === 'url')
-  check('numbers clamped', saved.backgroundBlur === 30 && saved.panelOpacity === 0.1)
+  check('numbers clamped', saved.backgroundBlur === 30 && saved.panelOpacity === 0.1 && saved.panelBlur === 30)
   check('invalid accent dropped', saved.accentColor === '')
   check('accentButtons is boolean, default false', saved.accentButtons === false)
 
@@ -191,10 +191,10 @@ try {
   // The panel edits opacity in 10% steps and blur in 5px steps (30px max); the
   // host snaps to the same grid so the stored value is always representable.
   res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'application/json' },
-    Buffer.from(JSON.stringify({ background: 'url', backgroundImage: 'https://ex.com/w.jpg', backgroundOpacity: 0.35, backgroundBlur: 7, panelOpacity: 0.55 })))
+    Buffer.from(JSON.stringify({ background: 'url', backgroundImage: 'https://ex.com/w.jpg', backgroundOpacity: 0.35, backgroundBlur: 7, panelOpacity: 0.55, panelBlur: 7 })))
   const snapped = JSON.parse(res.body).config
   check('opacity snaps to the 10% grid', snapped.backgroundOpacity === 0.3 && snapped.panelOpacity === 0.6)
-  check('blur snaps to the 5px grid', snapped.backgroundBlur === 5)
+  check('blur snaps to the 5px grid', snapped.backgroundBlur === 5 && snapped.panelBlur === 5)
 
   console.log('\n== native theme preference (settings.describe(), not get()) ==')
   res = await services.webServer.dispatch('GET', '/ui-liteglass/state', AUTH)

@@ -319,17 +319,22 @@ check('the stored accent is the one shown as selected', chosen.length === 1 && c
 const nativeChip = nodes.find((n) => n.type === 'button' && textsOf(n).includes('原生'))
 check('native reset chip present and not selected', nativeChip !== undefined && nativeChip.props['aria-pressed'] === 'false')
 
-const groupOf = (label) => nodes.find((n) => n.props.role === 'group' && n.props['aria-label'] === label)
+const groupOf = (label) => nodes.find((n) => n.type === 'select' && n.props['aria-label'] === label)
 const bgGroup = groupOf('背景不透明度')
 const blurGroup = groupOf('背景模糊')
 const panelGroup = groupOf('面板不透明度')
-check('background opacity offers 11 stops (0%..100%)',
+const panelBlurGroup = groupOf('面板模糊')
+check('the parameters are dropdowns, not step chips',
+  [bgGroup, blurGroup, panelGroup, panelBlurGroup].every((g) => g !== undefined))
+check('background opacity dropdown offers 11 choices (0%..100%)',
   bgGroup !== undefined && bgGroup.children.length === 11 && textsOf(bgGroup).includes('0%') && textsOf(bgGroup).includes('100%'))
-check('panel opacity offers 10 stops (10%..100%)',
+check('panel opacity dropdown offers 10 choices (10%..100%)',
   panelGroup !== undefined && panelGroup.children.length === 10 && textsOf(panelGroup).includes('10%'))
-check('blur offers 7 stops, 5px apart, max 30px',
+check('blur dropdown is 0..30px in 5px steps',
   blurGroup !== undefined && blurGroup.children.length === 7 && textsOf(blurGroup).includes('0px') && textsOf(blurGroup).includes('30px'))
 check('blur offers nothing above 30px', !textsOf(blurGroup).includes('35px'))
+check('panel blur dropdown uses the same grid',
+  panelBlurGroup !== undefined && panelBlurGroup.children.length === 7 && textsOf(panelBlurGroup).includes('30px'))
 
 const fileInput = nodes.find((n) => n.type === 'input' && n.props.type === 'file')
 check('file picker is limited to the four accepted formats',
@@ -395,6 +400,49 @@ await new Promise((resolve) => setTimeout(resolve, 0))
 check('an accepted upload is sent exactly once', uploadsSent() === beforeOk + 1)
 check('success is reported to the user', /已上传并应用/.test(textsOf(uploadRun.ui.tree()).join(' ')))
 check('no error banner is left after success', alertText() === '')
+
+console.log('\n== 11. panel blur activation and the custom hex field ==')
+check('panel blur is off by default (no marker on <html>)',
+  panelRun.dom.html.attrs['data-dsh-ui-liteglass-panel-blur'] === undefined)
+const blurRun = await run({ ...baseConfig, panelBlur: 10 })
+check('enabling panel blur marks the root element',
+  blurRun.dom.html.attrs['data-dsh-ui-liteglass-panel-blur'] === '')
+check('the blur strength reaches its CSS variable',
+  String(blurRun.dom.html.style['--dsh-liteglass-panel-blur']) === '10px')
+const cssText = String(blurRun.dom.head.children[0].textContent)
+check('the blur rules are attribute-gated and target the three columns',
+  cssText.includes(':root[data-dsh-ui-liteglass-panel-blur]') && cssText.includes('_sidebarCol') &&
+  cssText.includes('_centerCol') && cssText.includes('[data-rightbar-col]'))
+check('the rules are inert while the setting stays at 0',
+  String(panelRun.dom.html.style['--dsh-liteglass-panel-blur']) === '0px')
+
+const hexRun = await run({ ...baseConfig, accentColor: '' })
+hexRun.renderPanel()
+const hexNode = () => {
+  const all = []
+  walk(hexRun.ui.tree(), (n) => all.push(n))
+  return all.find((n) => n.type === 'input' && n.props['aria-label'] === '自定义重点色号')
+}
+check('a plain hex text field is offered', hexNode() !== undefined && hexNode().props.type === 'text')
+const hexCopy = textsOf(hexRun.ui.tree()).join(' ')
+check('the field documents the accepted format only',
+  /只收色号/.test(hexCopy) && /不提供取色器/.test(hexCopy))
+
+const postCount = () => hexRun.fetchCalls.filter((call) => call.url === '/ui-liteglass/config' && String(call.opts.method).toUpperCase() === 'POST').length
+hexNode().props.onChange({ target: { value: '#12' } })
+hexNode().props.onBlur()
+const hexAlerts = []
+walk(hexRun.ui.tree(), (n) => { if (n.props.role === 'alert') hexAlerts.push(textsOf(n).join('')) })
+check('an incomplete hex is rejected with a hint', hexAlerts.some((text) => /仅支持色号/.test(text)))
+check('an incomplete hex saves nothing', postCount() === 0)
+
+hexNode().props.onChange({ target: { value: 'ABCDEF' } })
+hexNode().props.onBlur()
+const configPosts = hexRun.fetchCalls.filter((call) => call.url === '/ui-liteglass/config' && String(call.opts.method).toUpperCase() === 'POST')
+check('a bare hex is normalized with # and saved',
+  configPosts.length === 1 && JSON.parse(configPosts[0].opts.body).accentColor === '#abcdef')
+check('the error clears once a valid code is accepted',
+  !textsOf(hexRun.ui.tree()).join(' ').includes('仅支持色号'))
 
 console.log('\n== RESULT: ' + pass + ' passed, ' + fail + ' failed ==')
 if (fail > 0) process.exit(1)
