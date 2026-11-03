@@ -8,7 +8,7 @@
 
 ## 截图
 
-运行中的真实截图——浅色 / 深色主界面与外观设置页——放在
+运行中的真实截图——浅色 / 深色主界面与 LiteGlass 设置区块——放在
 [`docs/screenshots/`](docs/screenshots/)，并通过
 [`screenshots.json`](screenshots.json) 接入市场展示。
 
@@ -16,18 +16,20 @@
 
 ![LiteGlass — 深色模式](docs/screenshots/preview-dark.webp)
 
-![LiteGlass — 外观设置](docs/screenshots/settings-light.webp)
+![LiteGlass — 设置区块](docs/screenshots/settings-light.webp)
 
 ## 功能
 
 1. **自定义壁纸**
    - 支持远程图片 URL，或本地上传图片
-   - 可调节背景不透明度与背景模糊
+   - 背景不透明度与背景模糊均以下拉菜单选择：不透明度 10% 一档，模糊 5px 一档、上限 30px
 
 2. **玻璃质感面板**
-   - 可调节面板透明度，营造轻量的玻璃质感
+   - 面板透明度以下拉菜单选择，营造轻量的玻璃质感
+   - 可为浮层（蒙层）背后的内容附加模糊：打开设置时，面板后面的页面会失焦
 
 3. **重点色 (Accent)**
+   - 九个预设、「原生」重置，或手动输入任意色号（不提供取色器）
    - 自定义 DSH 界面中受支持状态的重点色
    - 自动适配 DSH 原生浅色 / 深色外观
 
@@ -60,7 +62,7 @@
   `theme.overrideTokens`、`dsh.client` inject、`settings.general.item` 插槽）。
 - **Tested with（已验证）**：DeepSeek Harness `0.2.1-rc.2`（client theme 与 settings
   shell 同属该构建）。
-- **不支持**：`0.1.0-rc` 线。`0.2.0` 依赖 `connection` 服务与 `settings.describe()`，
+- **不支持**：`0.1.0-rc` 线。`0.2.x` 线依赖 `connection` 服务与 `settings.describe()`，
   这两者在旧线中都不存在。
 
 DeepSeek Harness 仍在快速迭代，未来版本可能改变插件接口；以上支持范围是声明，
@@ -84,7 +86,7 @@ dsh --profile web
 如需固定到某个具体版本，可在 URL 后附加 tag：
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.0'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.3'
 ```
 
 `dsh plugin add` 会在首次使用时初始化 profile，并自动接入 bundle。之后启动 Web UI，
@@ -97,7 +99,7 @@ dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass
 - **背景**：关闭 / URL / 本地上传。上传支持 PNG / JPEG / WebP / GIF，单张上限
   **8 MiB**——面板里直接写明上限，超过的文件在浏览器端就被拦下，不会发出请求；失败会
   在面板里说明原因（超限、格式不符、会话失效、网络错误）。
-- **背景不透明度**、**背景模糊**、**面板不透明度**、**面板模糊** 都是下拉菜单：不透明度
+- **背景不透明度**、**背景模糊**、**面板不透明度**、**浮层模糊** 都是下拉菜单：不透明度
   10% 一档，模糊 5px 一档、上限 30px。一次选择一次保存，也没有拖动导致的逐像素写盘。
 - **重点色**：九个预设 + 「原生」重置 + 一个纯色号输入框（`#RGB` / `#RRGGBB` /
   `#RRGGBBAA`，不提供取色器）。DSH 自身没有重点色设置（`ui-theme` 只存颜色模式与字号），
@@ -109,9 +111,8 @@ dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass
 页面的蒙层都消费这个令牌——因此不涉及任何 DOM 选择器、不改布局，设回 0 立刻恢复 `none`。
 
 它**刻意不做**两件事：弹出菜单/工具面板本来就有自己的材质模糊（`--dsw-menu-backdrop-filter`，
-40px + 150% 饱和），插件不去动它；侧栏列与输入区背后只有壁纸，对它们加 backdrop-filter
-只会把背景模糊已经在模糊的同一张图再模糊一次——这正是上一版“列容器方案”与背景模糊观感
-完全一致的原因。想要壁纸更柔，请用**背景模糊**。
+40px + 150% 饱和），插件不去动它；侧栏列与输入区背后只有壁纸，对它们再加模糊只是重复
+背景模糊已经做过的事——想要壁纸更柔，请用**背景模糊**。
 
 配置保存在 DSH 主机端，因此通过不同设备访问时也会使用同一套外观配置。
 
@@ -129,9 +130,9 @@ dsh plugin --profile web remove dsh-ui-liteglass
 
 ## 已知限制
 
-- **面板模糊（`backdrop-filter`）目前未启用。** 在当前构建中，对主面板容器施加
-  背景模糊会破坏设置页 / 浮层定位，因此该效果被禁用。背景模糊与面板透明是可用的，
-  不受影响。
+- **浮层模糊只作用于蒙层。** 它磨砂的是对话框/设置页等蒙层背后的内容；弹出菜单与工具面板
+  沿用 DSH 自带的材质模糊，插件不覆盖；而侧栏列与输入区背后只有壁纸，不会有独立效果——
+  那些场景请用背景模糊。
 - 颜色模式（Light / Dark / System）始终由 DSH 原生设置控制——本插件不提供颜色模式切换。
 - 设置区块注册进 `settings.general.item` 插槽；若某个组合没有通用设置页，就没有承载位，
   该区块不会出现。
@@ -143,7 +144,8 @@ dsh plugin --profile web remove dsh-ui-liteglass
 ```sh
 npm test
 # host-smoke       路由：鉴权、归一化、上传限制、回收、dispose
-# client-contract  设置位置、token 层、重点色配对、卸载还原
+# client-contract  设置区块、下拉控件、重点色预设与色号输入、上传反馈、
+#                  浮层模糊令牌、卸载还原
 # lifecycle        配置存储
 # no-appearance    绝不触碰原生颜色模式
 ```
