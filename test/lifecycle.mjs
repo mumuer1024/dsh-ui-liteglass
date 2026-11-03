@@ -18,7 +18,7 @@
 const DEFAULT_CONFIG = {
   background: 'off',
   backgroundImage: '',
-  backgroundOpacity: 0.35,
+  backgroundOpacity: 0.4,
   backgroundBlur: 0,
   panelOpacity: 1,
   panelBlur: 0,
@@ -34,13 +34,18 @@ function normalize(raw) {
   const c = {}
   c.background = oneOf(s.background, BACKGROUNDS, DEFAULT_CONFIG.background)
   c.backgroundImage = typeof s.backgroundImage === 'string' ? s.backgroundImage : ''
-  c.backgroundOpacity = finite(s.backgroundOpacity, DEFAULT_CONFIG.backgroundOpacity)
-  c.backgroundBlur = finite(s.backgroundBlur, DEFAULT_CONFIG.backgroundBlur)
-  c.panelOpacity = finite(s.panelOpacity, DEFAULT_CONFIG.panelOpacity)
+  c.backgroundOpacity = snap(finite(s.backgroundOpacity, DEFAULT_CONFIG.backgroundOpacity), 0.1, 0, 1)
+  c.backgroundBlur = snap(finite(s.backgroundBlur, DEFAULT_CONFIG.backgroundBlur), 5, 0, 30)
+  c.panelOpacity = snap(finite(s.panelOpacity, DEFAULT_CONFIG.panelOpacity), 0.1, 0.1, 1)
   c.panelBlur = finite(s.panelBlur, DEFAULT_CONFIG.panelBlur)
   c.accentColor = /^#[0-9a-fA-F]{3,8}$/.test(s.accentColor) ? String(s.accentColor) : ''
   c.accentButtons = s.accentButtons === true
   return c
+}
+function snap(v, step, min, max) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return v
+  return Math.round(Math.min(max, Math.max(min, Math.round(n / step) * step)) * 1000) / 1000
 }
 function eq(a, b) { try { return JSON.stringify(a) === JSON.stringify(b) } catch { return false } }
 
@@ -115,7 +120,7 @@ check('post-remount edit kept', mountSettingsPanelRead().panelOpacity === 0.3)
 
 console.log('\n== 6. simulated page refresh / DSH restart (new session reloads persisted) ==')
 currentConfig = null
-persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 3, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700', accentButtons: true }
+persisted = { background: 'local', backgroundImage: '/ui-liteglass/backgrounds/abc123def4567890.png', backgroundOpacity: 0.4, backgroundBlur: 5, panelOpacity: 0.6, panelBlur: 8, accentColor: '#ff7700', accentButtons: true }
 c = loadFromServer()
 check('reload restores persisted config', eq(c, persisted))
 check('reload config finite', finiteOk(c))

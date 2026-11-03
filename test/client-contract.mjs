@@ -76,20 +76,74 @@ function makeDom() {
   return { document, html, body, head, rootEl }
 }
 
-const react = { createElement: () => ({}), useState: () => [], useEffect: () => {} }
+// Minimal renderer: function components are expanded eagerly so the panel can
+// be inspected as a plain element tree (no React runtime in this test).
+function createElement(type, props, ...children) {
+  const flat = children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false && c !== true)
+  if (typeof type === 'function') return type(Object.assign({}, props, { children: flat }))
+  return { type, props: props || {}, children: flat }
+}
+// Hook runtime: state survives a re-render, which is what lets the upload
+// feedback (busy / error / success) be observed here.
+function makeUi() {
+  const hooks = []
+  let index = 0
+  let root = null
+  let tree = null
+  const ui = {
+    react: {
+      createElement,
+      useState(initial) {
+        const at = index++
+        if (hooks.length <= at) hooks[at] = initial
+        const set = (value) => {
+          hooks[at] = typeof value === 'function' ? value(hooks[at]) : value
+          ui.render()
+        }
+        return [hooks[at], set]
+      },
+      useEffect() {}
+    },
+    setRoot(fn) { root = fn; return ui },
+    render() { index = 0; tree = root(); return tree },
+    tree() { return tree }
+  }
+  return ui
+}
+
+function walk(node, visit) {
+  if (node === null || node === undefined || typeof node !== 'object') return
+  visit(node)
+  for (const child of node.children || []) walk(child, visit)
+}
+function textsOf(node) {
+  const out = []
+  walk(node, (n) => {
+    for (const child of n.children || []) {
+      if (typeof child === 'string' || typeof child === 'number') out.push(String(child))
+    }
+  })
+  return out
+}
 
 /**
  * Load the client factory, run apply() with stubbed services, and let the
  * initial config fetch settle.
  */
-async function run(config) {
+async function run(config, fetchImpl) {
   const dom = makeDom()
+  const ui = makeUi()
+  const fetchCalls = []
   let captured = null
   const sandbox = {
     window: { __ModuleLoader__: { load: (registration) => { captured = registration } } },
     __ModuleLoader__: { load: (registration) => { captured = registration } },
     document: dom.document,
-    fetch: async () => ({ json: async () => ({ ok: true, config }) }),
+    fetch: async (url, opts) => {
+      fetchCalls.push({ url: String(url), opts: opts || {} })
+      if (fetchImpl) return fetchImpl(String(url), opts || {})
+      return { status: 200, json: async () => ({ ok: true, config }) }
+    },
     console,
     setTimeout,
     queueMicrotask
@@ -97,7 +151,7 @@ async function run(config) {
   vm.createContext(sandbox)
   vm.runInContext(src, sandbox)
   const mod = captured.factory((id) => {
-    if (id === 'react') return react
+    if (id === 'react') return ui.react
     throw new Error('require ' + id)
   })
 
@@ -114,7 +168,7 @@ async function run(config) {
   }
   const slots = {
     inject(name, callback) { slotCalls.push({ kind: 'inject', name }); callback() },
-    register(options) { slotCalls.push({ kind: 'register', options }); return () => {} }
+    register(options, component) { slotCalls.push({ kind: 'register', options, component }); return () => {} }
   }
   const listeners = {}
   const ctx = {
@@ -126,8 +180,12 @@ async function run(config) {
   mod.apply(ctx)
   await new Promise((resolve) => setTimeout(resolve, 0))
 
+  const registration = slotCalls.find((call) => call.kind === 'register' && typeof call.component === 'function')
+  if (registration) ui.setRoot(() => registration.component({}))
+
   return {
-    dom, mod, ctx, theme, themeCalls, slotCalls, listeners,
+    dom, mod, ctx, ui, theme, themeCalls, slotCalls, listeners, fetchCalls,
+    renderPanel: () => ui.render(),
     themeDisposed: () => themeDisposed,
     disposeAll() { while (effects.length > 0) effects.pop()() }
   }
@@ -236,6 +294,107 @@ check('no surface tokens when glass is off', !('--dsw-alias-bg-base' in offToken
 check('no accent tokens when accent is unset', !('--dsw-alias-state-business-primary' in offTokens))
 check('no wallpaper node when background is off',
   !runOff.dom.body.children.some((node) => node.attrs['data-dsh-ui-liteglass'] === 'bg'))
+
+console.log('\n== 9. panel controls: segments, nine presets, explicit upload copy ==')
+const panelConfig = {
+  ...baseConfig,
+  background: 'local',
+  backgroundImage: '/ui-liteglass/backgrounds/aaaaaaaaaaaaaaaa.png',
+  accentColor: '#e4c249'
+}
+const panelRun = await run(panelConfig)
+const panelTree = panelRun.renderPanel()
+const nodes = []
+walk(panelTree, (node) => nodes.push(node))
+
+check('no color picker and no continuous slider left',
+  !nodes.some((n) => n.props.type === 'color' || n.props.type === 'range'))
+
+const swatches = nodes.filter((n) => typeof n.props['data-accent'] === 'string')
+check('nine accent presets', swatches.length === 9)
+check('presets are distinct hex colors',
+  new Set(swatches.map((n) => n.props['data-accent'])).size === 9 && swatches.every((n) => /^#[0-9a-f]{6}$/i.test(n.props['data-accent'])))
+const chosen = swatches.filter((n) => n.props['aria-pressed'] === 'true')
+check('the stored accent is the one shown as selected', chosen.length === 1 && chosen[0].props['data-accent'] === '#e4c249')
+const nativeChip = nodes.find((n) => n.type === 'button' && textsOf(n).includes('原生'))
+check('native reset chip present and not selected', nativeChip !== undefined && nativeChip.props['aria-pressed'] === 'false')
+
+const groupOf = (label) => nodes.find((n) => n.props.role === 'group' && n.props['aria-label'] === label)
+const bgGroup = groupOf('背景不透明度')
+const blurGroup = groupOf('背景模糊')
+const panelGroup = groupOf('面板不透明度')
+check('background opacity offers 11 stops (0%..100%)',
+  bgGroup !== undefined && bgGroup.children.length === 11 && textsOf(bgGroup).includes('0%') && textsOf(bgGroup).includes('100%'))
+check('panel opacity offers 10 stops (10%..100%)',
+  panelGroup !== undefined && panelGroup.children.length === 10 && textsOf(panelGroup).includes('10%'))
+check('blur offers 7 stops, 5px apart, max 30px',
+  blurGroup !== undefined && blurGroup.children.length === 7 && textsOf(blurGroup).includes('0px') && textsOf(blurGroup).includes('30px'))
+check('blur offers nothing above 30px', !textsOf(blurGroup).includes('35px'))
+
+const fileInput = nodes.find((n) => n.type === 'input' && n.props.type === 'file')
+check('file picker is limited to the four accepted formats',
+  fileInput !== undefined && /image\/png/.test(fileInput.props.accept) && /image\/jpeg/.test(fileInput.props.accept) &&
+  /image\/webp/.test(fileInput.props.accept) && /image\/gif/.test(fileInput.props.accept))
+const panelText = textsOf(panelTree).join(' ')
+check('the 8 MiB ceiling is stated before any upload', /8 MiB/.test(panelText))
+check('the accepted formats are stated too', /PNG \/ JPEG \/ WebP \/ GIF/.test(panelText))
+check('no error/success banner before an upload',
+  !nodes.some((n) => n.props.role === 'alert' || (n.props.role === 'status' && textsOf(n).some((t) => t.indexOf('已上传') === 0))))
+
+const customRun = await run({ ...panelConfig, accentColor: '#123456' })
+const customPanel = customRun.renderPanel()
+check('an off-palette accent is explained instead of silently missing',
+  textsOf(customPanel).join(' ').includes('自定义色'))
+
+const snapRun = await run({ ...baseConfig, panelOpacity: 0.33 })
+const snapTokens = snapRun.themeCalls[snapRun.themeCalls.length - 1].tokens
+check('client snaps opacity onto the 10% grid (0.33 → 0.3)',
+  alphaOf(snapTokens['--dsw-alias-bg-base'].light) === 0.3)
+
+console.log('\n== 10. upload: oversized is refused locally, rejections are explained ==')
+let answer = { status: 200, body: { ok: true, url: '/ui-liteglass/backgrounds/bbbbbbbbbbbbbbbb.png' } }
+const uploadRun = await run(panelConfig, async (url) => {
+  if (url.indexOf('/ui-liteglass/background') === 0) return { status: answer.status, json: async () => answer.body }
+  return { status: 200, json: async () => ({ ok: true, config: panelConfig }) }
+})
+const uploadsSent = () => uploadRun.fetchCalls.filter((call) => call.url.indexOf('/ui-liteglass/background') === 0 && String(call.opts.method || 'GET').toUpperCase() === 'POST').length
+const fileInputNow = () => {
+  const nodes = []
+  walk(uploadRun.ui.tree(), (n) => nodes.push(n))
+  return nodes.find((n) => n.type === 'input' && n.props.type === 'file')
+}
+const fire = (file) => {
+  fileInputNow().props.onChange({ target: { files: [file], value: 'picked' } })
+}
+const alertText = () => {
+  const nodes = []
+  walk(uploadRun.ui.tree(), (n) => nodes.push(n))
+  const banner = nodes.find((n) => n.props.role === 'alert')
+  return banner ? textsOf(banner).join('') : ''
+}
+
+uploadRun.renderPanel()
+fire({ name: 'big.png', type: 'image/png', size: 9 * 1024 * 1024 })
+check('oversized file never reaches the network', uploadsSent() === 0)
+check('oversized file is refused with its own size and the ceiling',
+  /9\.0 MiB/.test(alertText()) && /8 MiB/.test(alertText()))
+
+answer = { status: 413, body: { ok: false, error: 'image too large' } }
+fire({ name: 'edge.png', type: 'image/png', size: 1024 })
+await new Promise((resolve) => setTimeout(resolve, 0))
+check('a server-side 413 is explained, not swallowed', /超过 8 MiB/.test(alertText()))
+
+answer = { status: 200, body: { ok: true, url: '/x' } }
+fire({ name: 'x.svg', type: 'image/svg+xml', size: 1024 })
+check('an unsupported format is refused before sending',
+  /PNG \/ JPEG \/ WebP \/ GIF/.test(alertText()) && uploadsSent() === 1)
+
+const beforeOk = uploadsSent()
+fire({ name: 'ok.png', type: 'image/png', size: 2048 })
+await new Promise((resolve) => setTimeout(resolve, 0))
+check('an accepted upload is sent exactly once', uploadsSent() === beforeOk + 1)
+check('success is reported to the user', /已上传并应用/.test(textsOf(uploadRun.ui.tree()).join(' ')))
+check('no error banner is left after success', alertText() === '')
 
 console.log('\n== RESULT: ' + pass + ' passed, ' + fail + ' failed ==')
 if (fail > 0) process.exit(1)
