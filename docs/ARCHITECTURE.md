@@ -110,9 +110,13 @@ $DSH_HOME/ui-liteglass/
 - The host `sanitizeConfig` normalizes/whitelists every field on write, so the
   on-disk config is always complete and finite (no `NaN`/`undefined`).
 - Config schema: `background` (`off|url|local`), `backgroundImage`,
-  `backgroundOpacity` (0–1), `backgroundBlur` (0–40), `panelOpacity` (0–1),
-  `panelBlur` (0–40), `accentColor` (hex or empty), `accentButtons` (boolean,
-  default `false`).
+  `backgroundOpacity` (0–1, snapped to 0.1), `backgroundBlur` (0–30, snapped to
+  5), `panelOpacity` (0.1–1, snapped to 0.1), `panelBlur` (0–40, dormant),
+  `accentColor` (hex or empty), `accentButtons` (boolean, default `false`).
+- Opacity and blur are quantized on write on both sides (`snap` / `snapNum`)
+  because the panel edits them in segments — 10% steps and 5px steps — and a
+  stored value the control cannot represent would make the UI lie. Legacy
+  off-grid values (e.g. `0.35`) snap on the next save.
 - Config writes and reads go through the HTTP routes. This avoids the native
   settings transport for this plugin's data (see §8).
 
@@ -154,6 +158,11 @@ adapt automatically when DSH switches Light/Dark.
   reads as depth above the wallpaper instead of collapsing into one flat tone
   (DSH 0.2.x encodes depth with three distinct raised surface tones). A wallpaper
   forces a translucency ceiling (≤ 0.85) so the image shows through.
+- **Accent presets**: the panel offers nine swatches plus a native reset rather
+  than a free color picker. DSH 0.2.x has no accent setting — the `ui-theme`
+  document carries only `preference` and the font-size fields — so the palette is
+  plugin-owned (`ACCENT_PRESETS` in `lib/client.js`). An off-palette value that
+  predates the change is still applied and is labelled as a custom color.
 - **Accent**: when `accentColor` is set, emphasis tokens are overridden —
   `--dsw-alias-state-business-primary`,
   `--dsw-specific-sidebar-nav-item-active-accent`,
@@ -232,7 +241,7 @@ Four Node test suites (no browser, no server required):
 | File | Scope |
 |---|---|
 | `test/host-smoke.mjs` | Host `apply` + routes against a throwaway `DSH_HOME`: 401 for every route without a session, config GET/POST + sanitization + content-type/Origin rejection, `settings.describe()`-based state, upload/serve (byte-identical), MIME + magic-byte rejection, 413 over the streamed limit, traversal 400, missing 404, unreferenced-file pruning, `dispose()` releasing every route. |
-| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. |
+| `test/client-contract.mjs` | Runs the real `lib/client.js` `apply()` in a VM with a DOM stub and a hook runtime, so the panel itself is rendered and inspected: registers into `settings.general.item` (no second Appearance page), token pairs carry `{light,dark}`, surface alpha climbs monotonically with depth, `brand-primary` stays untouched unless `accentButtons` (and is then paired with a readable foreground), wallpaper node precedes `#root`, `theme/change` recomposes without `setTheme`, unload retires the layer and removes the node. Panel controls: no color picker or slider, nine preset swatches with a native reset, 11/10 opacity stops, 7 blur stops capped at 30px, the 8 MiB ceiling stated up front. Upload flow: an oversized file never reaches the network, a 413 is explained, a wrong format is refused, a normal upload is sent once and reported. |
 | `test/lifecycle.mjs` | Client authoritative-store semantics: default merge, no NaN/undefined, remount hydrates from `currentConfig` (not `DEFAULT_CONFIG`), repeated close/open, reload restores persisted config. |
 | `test/no-appearance.mjs` | Source + logic check that the plugin never calls `theme.setTheme`, has no `appearance`/`originalPreference` fields, still uses `overrideTokens`, and recomputes tokens on `theme/change` without changing the native color mode. |
 

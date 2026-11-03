@@ -100,13 +100,20 @@ LiteGlass block sits directly under the native **Appearance** row.
 Open **Settings → General** (the plugin contributes a block to that page, right
 below the native Appearance row):
 
-- **Background**: Off / URL / local upload; background opacity; background blur.
-- **Panel transparency**: how translucent the main surfaces are.
-- **Accent color**: pick a color, or reset to the native value. Accent colors the
-  emphasis states (selection, links, info fills, sidebar markers). **Colorful
-  primary buttons** is a separate, default-off switch that additionally paints
-  the primary button — on by default it would override the monochrome primary
-  fill that DSH 0.2.x uses.
+- **Background**: Off / URL / local upload. Uploads accept PNG / JPEG / WebP /
+  GIF and are capped at **8 MiB per file** — the ceiling is shown in the panel,
+  and a file over it is refused in the browser before anything is sent. Failures
+  are reported in the panel (too large, wrong format, expired session, network).
+- **Background opacity**: 10% steps. **Background blur**: 5px steps, up to 30px.
+- **Panel transparency**: 10% steps.
+- **Accent color**: nine presets and a native reset. DSH has no accent setting of
+  its own (`ui-theme` stores only the color mode and font sizes), so this palette
+  belongs to the plugin. **Colorful primary buttons** is a separate, default-off
+  switch that additionally paints the primary button — on by default it would
+  override the monochrome primary fill that DSH 0.2.x uses.
+
+The stepped controls replaced continuous sliders on purpose: each click is one
+change, so a drag can no longer fire a save plus a token-layer rebuild per pixel.
 
 Changes are saved to the server and shared across devices that reach the DSH host.
 
