@@ -177,6 +177,26 @@ try {
   check('fresh config body ok', JSON.parse(res.body).ok === true)
   check('fresh config is null', JSON.parse(res.body).config === null)
 
+  // The three states must stay distinct: absent (fresh install), unreadable
+  // (damaged file) and readable. Conflating the first two is what made a fresh
+  // install unusable in 0.2.4.
+  await mkdir(dataDir, { recursive: true })
+  await writeFile(configFile, '{ this is not json', 'utf8')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH)
+  check('a corrupt document is refused, not reported as empty',
+    res.statusCode === 500 && JSON.parse(res.body).error === 'config-unreadable')
+  check('a refused corrupt read does not rewrite the file',
+    (await readFile(configFile, 'utf8')) === '{ this is not json')
+  await writeFile(configFile, JSON.stringify(['not', 'an', 'object']), 'utf8')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH)
+  check('a non-object document is refused too',
+    res.statusCode === 500 && JSON.parse(res.body).error === 'config-unreadable')
+  await writeFile(configFile, JSON.stringify({ panelOpacity: 0.5 }), 'utf8')
+  res = await services.webServer.dispatch('GET', '/ui-liteglass/config', AUTH)
+  check('a readable document is returned as stored',
+    res.statusCode === 200 && JSON.parse(res.body).config.panelOpacity === 0.5)
+  await rm(configFile, { force: true })
+
   res = await services.webServer.dispatch('POST', '/ui-liteglass/config', { ...AUTH, 'content-type': 'text/plain' }, Buffer.from('{}'))
   check('config POST rejects text/plain (415)', res.statusCode === 415)
 

@@ -82,6 +82,12 @@ a live patch that re-applies the plugin would otherwise throw
 
 Route notes:
 
+- `GET /ui-liteglass/config` keeps three states apart, because the client must
+  not conflate them: **absent** (fresh install → `200 {ok:true, config:null}`),
+  **unreadable** (the file exists but is not a JSON object →
+  `500 {ok:false, error:"config-unreadable"}`) and **readable** (`200 {config}`).
+  Reporting a damaged file as empty would make the client normalise the defaults
+  and write them over a document the user could still repair by hand.
 - `webServer` matches prefix routes via `pathname.startsWith(prefix + "/")`, so
   the `backgrounds` prefix is registered **without** a trailing slash (a trailing
   slash would double into `"//"` and never match).

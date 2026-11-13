@@ -477,5 +477,49 @@ check('the repair carries the full schema', (() => {
   return body.background !== undefined && body.accentButtons !== undefined && body.panelOpacity === 0.3
 })())
 
+const corruptRun = await run(panelConfig, async (url, opts) => {
+  const method = String((opts && opts.method) || 'GET').toUpperCase()
+  if (String(url).indexOf('/ui-liteglass/config') === 0 && method === 'GET') {
+    return { status: 500, json: async () => ({ ok: false, error: 'config-unreadable' }) }
+  }
+  return { status: 200, json: async () => ({ ok: true, config: panelConfig }) }
+})
+corruptRun.renderPanel()
+const corruptPosts = corruptRun.fetchCalls.filter((call) =>
+  call.url === '/ui-liteglass/config' && String(call.opts.method || 'GET').toUpperCase() === 'POST')
+const corruptText = textsOf(corruptRun.ui.tree()).join(' ')
+check('a corrupt server document is not overwritten either', corruptPosts.length === 0)
+check('a corrupt document is reported as damaged, not as a session problem',
+  /config\.json/.test(corruptText) && /损坏/.test(corruptText) && !/重新登录/.test(corruptText))
+check('no token layer is applied for a corrupt document', corruptRun.themeCalls.length === 0)
+
+console.log('\n== 13. a fresh install (no document yet) is usable ==')
+// The host answers `{ok:true, config:null}` on a fresh install. `ok:true` proves
+// the read succeeded, so this is "nothing stored", not "read failed" — 0.2.4
+// rejected it and made a fresh install show the read error with no controls.
+const freshRun = await run(panelConfig, async (url, opts) => {
+  const method = String((opts && opts.method) || 'GET').toUpperCase()
+  if (String(url).indexOf('/ui-liteglass/config') === 0 && method === 'GET') {
+    return { status: 200, json: async () => ({ ok: true, config: null }) }
+  }
+  return { status: 200, json: async () => ({ ok: true, config: panelConfig }) }
+})
+freshRun.renderPanel()
+const freshText = textsOf(freshRun.ui.tree()).join(' ')
+const freshNodes = []
+walk(freshRun.ui.tree(), (n) => freshNodes.push(n))
+check('a fresh install shows no read error', !/无法读取已保存的外观配置/.test(freshText))
+check('a fresh install renders the controls',
+  freshNodes.some((n) => n.type === 'select') && freshNodes.some((n) => n.type === 'button'))
+check('a fresh install applies the default look', freshRun.themeCalls.length > 0)
+const freshPosts = freshRun.fetchCalls.filter((call) =>
+  call.url === '/ui-liteglass/config' && String(call.opts.method || 'GET').toUpperCase() === 'POST')
+check('a fresh install seeds the document exactly once', freshPosts.length === 1)
+check('the seeded document is the normalised default schema', (() => {
+  const body = JSON.parse(freshPosts[0].opts.body)
+  return body.background === 'off' && body.panelOpacity === 1 && body.accentButtons === false &&
+    typeof body.accentColor === 'string' && typeof body.backgroundBlur === 'number' && typeof body.panelBlur === 'number'
+})())
+
 console.log('\n== RESULT: ' + pass + ' passed, ' + fail + ' failed ==')
 if (fail > 0) process.exit(1)

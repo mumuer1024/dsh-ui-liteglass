@@ -86,7 +86,7 @@ dsh --profile web
 如需固定到某个具体版本，可在 URL 后附加 tag：
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.4'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.5'
 ```
 
 `dsh plugin add` 会在首次使用时初始化 profile，并自动接入 bundle。之后启动 Web UI，

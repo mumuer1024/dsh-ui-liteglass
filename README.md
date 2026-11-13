@@ -94,7 +94,7 @@ dsh --profile web
 To pin a specific release, add the tag:
 
 ```sh
-dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.4'
+dsh plugin --profile web add 'git+https://github.com/mumuer1024/dsh-ui-liteglass.git#v0.2.5'
 ```
 
 `dsh plugin add` initializes the profile on first use and wires the bundle

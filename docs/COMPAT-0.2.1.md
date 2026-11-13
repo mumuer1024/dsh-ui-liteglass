@@ -379,6 +379,63 @@ if (!connection || typeof connection.isAuthenticated !== 'function') return fals
 - `docs/COMPAT` §5 与 §7 里关于"鉴权已生效"的记录以本节为准：那两节描述的是当时的意图，
   实际未生效。
 
+## 12. v0.2.5 修复：全新安装不可用（首装 `config:null` 被当成读失败）
+
+> 现象（实测，全新环境）：装好插件后设置面板只显示
+> `无法读取已保存的外观配置（HTTP 200）…`，没有任何控件，改不了任何设置。
+
+### 根因
+
+0.2.4 为了修 §11 的 401 问题，给客户端加了"读失败不得当空配置"的护栏：
+
+```js
+var readable = rs && rs.ok === true && rs.config !== null && typeof rs.config === 'object'
+```
+
+但全新安装时宿主机上根本没有 `config.json`（`writeJson` 只在 POST 里调用，
+插件启动不落默认文档），宿主读不到文件就返回 `{ ok: true, config: null }`
+（`lib/index.js` 旧实现 `readJson(configFile, null)`，HTTP 200）。于是护栏把
+**一次成功的空读取**判成了失败：`loadError = 'HTTP 200'`，面板走"拒绝应用"分支
+——不套用默认值、不渲染控件、不写盘，插件看起来"装上了但用不了"。
+
+0.2.3 的实现是 `var saved = (rs && rs.config) || {}`，null 直接当空文档，首装正常。
+所以这是 **0.2.4 引入的回归**，只影响"没有任何 `config.json`"的环境；已有配置文件
+的环境（含本机）不受影响。
+
+### 为什么测试没抓到
+
+两半边的契约是各自断言的，且断言的不是同一个值：
+
+| 侧 | 断言 | 位置 |
+|---|---|---|
+| 宿主 | 「全新安装 = `config:null`」 | `test/host-smoke.mjs` `fresh config is null` |
+| 客户端 | 默认 fetch **永远返回对象**；失败只用 `ok:false`（401）覆盖 | `test/client-contract.mjs` §12 |
+
+没有任何一条用例把宿主的 `null` 喂给客户端。
+
+### 修复（契约显式化）
+
+| 位置 | 改动 |
+|---|---|
+| `lib/index.js` | 新增 `readConfigDocument()`，把三种状态分开：文件不存在（ENOENT）→ `{config:null}`；存在但解析不出 JSON 对象 → `{unreadable:true}` → `500 {ok:false, error:'config-unreadable'}`，**且不重写文件**；正常 → `{config}` |
+| `lib/client.js` | 只把 `ok !== true` 当失败；`ok:true` + `config:null` 视为首装，归一化成默认值并做一次修复写回（首次访问即落盘）。`config-unreadable` 给出准确文案（"服务端 config.json 已损坏或不是有效的 JSON 对象…"），不再误导为"重新登录" |
+| `test/host-smoke.mjs` | 新增：损坏文件 → 500 + `config-unreadable` + 文件未被改写；非对象 JSON（数组）同样拒绝；可读文件原样返回 |
+| `test/client-contract.mjs` | 新增 §13：`{ok:true,config:null}` 首装 → 无错误、控件正常、默认视觉生效、只种一次默认文档（schema 完整）；另加损坏文档分支：不写盘、文案指向 `config.json`、不套 token 层 |
+
+### 验证
+
+- `npm test` **153 项全过**（host 45 / client 76 / lifecycle 19 / no-appearance 13）。
+- 隔离复现（修复前）：首装载荷 → `panel text: …（HTTP 200）`、`controls rendered: 0`、
+  `writes sent: 0`、`usable: false`，与用户所见一致。
+- 隔离复现（修复后，同一载荷）：控件 17 个、`token layers applied: 1`、
+  `writes sent: 1`、`usable: true`。
+- **未验证**：全新宿主机上的真实首装（需要一台干净环境；本次只在隔离桩与打包产物层面验证）。
+
+### 遗留
+
+- 已装 0.2.4 且已有 `config.json` 的环境不受此问题影响，无需额外操作。
+- 首装失败期间（0.2.4）用户点过的设置从未落盘，升级后重新设置一次即可。
+
 ## 附录 A：DSH 侧参照索引
 
 | 主题 | 位置 |
